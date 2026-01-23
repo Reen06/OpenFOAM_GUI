@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenFOAM Web Wind Tunnel GUI</title>
+    <link rel="stylesheet" href="static/css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <a href="/" class="home-link" title="Back to OpenFOAM GUI Home"
+                    style="text-decoration: none; display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 24px;">🏠</span>
+                    <h1 style="margin: 0;">OpenFOAM Wind Tunnel GUI</h1>
+                </a>
+                <span class="version">v1.0 | ESI OpenFOAM v2506</span>
+            </div>
+            <div class="header-right">
+                <div class="status-indicator" id="connection-status">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Ready</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Sidebar Tabs -->
+            <nav class="sidebar">
+                <button class="tab-btn active" data-tab="run-manager">
+                    <span class="tab-icon">▶️</span>
+                    <span class="tab-label">Run Manager</span>
+                </button>
+                <button class="tab-btn" data-tab="mesh-manager">
+                    <span class="tab-icon">📦</span>
+                    <span class="tab-label">Mesh Library</span>
+                </button>
+                <button class="tab-btn" data-tab="boundary-mapper">
+                    <span class="tab-icon">🗺️</span>
+                    <span class="tab-label">Boundary Mapper</span>
+                </button>
+                <button class="tab-btn" data-tab="materials">
+                    <span class="tab-icon">🧪</span>
+                    <span class="tab-label">Materials</span>
+                </button>
+                <button class="tab-btn" data-tab="solver">
+                    <span class="tab-icon">⚙️</span>
+                    <span class="tab-label">Solver + Controls</span>
+                </button>
+                <button class="tab-btn" data-tab="paraview">
+                    <span class="tab-icon">🎬</span>
+                    <span class="tab-label">ParaView Helper</span>
+                </button>
+                <button class="tab-btn" data-tab="logs">
+                    <span class="tab-icon">📜</span>
+                    <span class="tab-label">Logs</span>
+                </button>
+            </nav>
+
+            <!-- Tab Content -->
+            <div class="content-area">
+                <!-- Run Manager Tab (Default) -->
+                <section id="run-manager" class="tab-panel active">
+                    <h2>Run Manager</h2>
+                    <p class="section-desc">Create and manage simulation runs</p>
+
+                    <!-- Create New Run -->
+                    <div class="card">
+                        <h4>Create New Run</h4>
+                        <div class="form-row" style="align-items: flex-end;">
+                            <div class="form-group" style="flex: 2;">
+                                <label>Select Mesh from Library *</label>
+                                <select id="mesh-selector">
+                                    <option value="">-- Select a mesh --</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label>Run Name (optional)</label>
+                                <input type="text" id="new-run-name" placeholder="Auto-generated">
+                            </div>
+                            <button class="btn btn-success" id="create-run-btn" disabled>
+                                Create Run
+                            </button>
+                        </div>
+
+                        <!-- New Mesh Upload Section -->
+                        <div id="new-mesh-upload-section"
+                            style="display: none; margin-top: 16px; padding: 16px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                            <h5 style="margin-top: 0; margin-bottom: 16px;">Upload New Mesh File</h5>
+                            <div class="upload-container">
+                                <div class="upload-box" id="mesh-upload-box">
+                                    <div class="upload-icon">📁</div>
+                                    <h3>Wind Tunnel Mesh</h3>
+                                    <p>Drag & drop or click to select .unv or .msh file</p>
+                                    <input type="file" id="mesh-file-input" accept=".unv,.msh" hidden>
+                                    <div class="upload-status" id="mesh-upload-status"></div>
+                                </div>
+                            </div>
+                            <p
+                                style="color: var(--text-muted); font-size: 0.9em; margin: 12px 0 0 0; text-align: center;">
+                                Mesh will be processed when you click "Create Run"
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Runs List -->
+                    <div class="card">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h4 style="margin: 0;">Existing Runs</h4>
+                            <button class="btn btn-secondary btn-sm" id="refresh-runs-btn">Refresh</button>
+                        </div>
+                        <div class="runs-list" id="runs-list">
+                            <p class="empty-state">No runs yet. Select a mesh and create a run.</p>
+                        </div>
+                    </div>
+
+                    <!-- Run Details Panel -->
+                    <div class="card" id="run-details-panel" style="display: none;">
+                        <h4>Run Details</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <p><strong>Name:</strong> <span id="run-detail-name"></span></p>
+                            <p><strong>Status:</strong> <span id="run-detail-status"></span></p>
+                            <p><strong>Mesh:</strong> <span id="run-detail-mesh"></span></p>
+                            <p><strong>Created:</strong> <span id="run-detail-created"></span></p>
+                        </div>
+                        <div style="margin-top: 12px;">
+                            <p><strong>ParaView Path:</strong></p>
+                            <code id="run-detail-pv-path"
+                                style="display: block; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 4px; word-break: break-all;"></code>
+                        </div>
+                        <div class="action-bar" style="margin-top: 16px;">
+                            <button class="btn btn-primary" id="go-to-solver-btn">Configure & Run</button>
+                            <button class="btn btn-secondary" id="go-to-paraview-btn">Open ParaView Helper</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Mesh Library Tab -->
+                <section id="mesh-manager" class="tab-panel">
+                    <h2>Mesh Library</h2>
+                    <p class="section-desc">View and manage saved meshes</p>
+
+                    <div class="card">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h4 style="margin: 0;">📚 Saved Meshes</h4>
+                            <button class="btn btn-secondary btn-sm" onclick="app.loadMeshLibrary()">Refresh</button>
+                        </div>
+                        <div id="mesh-library-list" class="library-list">
+                            <div class="empty-state">No saved meshes. Use Run Manager to create runs with new meshes.
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Boundary Mapper Tab -->
+                <section id="boundary-mapper" class="tab-panel">
+                    <h2>Boundary Mapper</h2>
+                    <p class="section-desc">View and verify patch assignments after mesh import</p>
+
+                    <div class="card" id="patches-container">
+                        <p class="empty-state">No patches detected. Import a mesh first.</p>
+                    </div>
+
+                    <div class="boundary-info">
+                        <h4>Wind Tunnel Boundary Types</h4>
+                        <div class="boundary-legend">
+                            <div class="boundary-item">
+                                <span class="boundary-badge inlet">inlet</span>
+                                <span>Flow entrance - fixed velocity</span>
+                            </div>
+                            <div class="boundary-item">
+                                <span class="boundary-badge outlet">outlet</span>
+                                <span>Flow exit - zero gradient</span>
+                            </div>
+                            <div class="boundary-item">
+                                <span class="boundary-badge wall">walls</span>
+                                <span>Tunnel walls - slip or no-slip</span>
+                            </div>
+                            <div class="boundary-item">
+                                <span class="boundary-badge object">model</span>
+                                <span>Test object surface</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Materials Tab -->
+                <section id="materials" class="tab-panel">
+                    <h2>Material Properties</h2>
+                    <p class="section-desc">Configure fluid properties and flow conditions</p>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Fluid Preset <button class="default-btn" data-field="fluid-preset"
+                                    title="Set as default">⭐</button></label>
+                            <select id="fluid-preset">
+                                <option value="air">Air (20C, 1 atm)</option>
+                                <option value="water">Water (20C)</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Temperature (K) <button class="default-btn" data-field="temperature"
+                                    title="Set as default">⭐</button></label>
+                            <input type="number" id="temperature" value="293.15" step="0.1">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Density (kg/m3) <button class="default-btn" data-field="density"
+                                    title="Set as default">⭐</button></label>
+                            <input type="number" id="density" value="1.225" step="0.001">
+                        </div>
+                        <div class="form-group">
+                            <label>Kinematic Viscosity (m2/s) <button class="default-btn"
+                                    data-field="kinematic-viscosity" title="Set as default">⭐</button></label>
+                            <input type="number" id="kinematic-viscosity" value="1.5e-5" step="1e-7">
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top: 16px;">
+                        <h4>Inlet Flow Conditions</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>U<sub>x</sub> (m/s) <button class="default-btn" data-field="inlet-ux"
+                                        title="Set as default">⭐</button></label>
+                                <input type="number" id="inlet-ux" value="10" step="0.1">
+                            </div>
+                            <div class="form-group">
+                                <label>U<sub>y</sub> (m/s) <button class="default-btn" data-field="inlet-uy"
+                                        title="Set as default">⭐</button></label>
+                                <input type="number" id="inlet-uy" value="0" step="0.1">
+                            </div>
+                            <div class="form-group">
+                                <label>U<sub>z</sub> (m/s) <button class="default-btn" data-field="inlet-uz"
+                                        title="Set as default">⭐</button></label>
+                                <input type="number" id="inlet-uz" value="0" step="0.1">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Outlet Pressure (Pa) <button class="default-btn" data-field="outlet-pressure"
+                                        title="Set as default">⭐</button></label>
+                                <input type="number" id="outlet-pressure" value="0" step="1">
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Solver + Controls Tab -->
+                <section id="solver" class="tab-panel">
+                    <h2>Solver & Controls</h2>
+                    <p class="section-desc">Configure simulation settings</p>
+
+                    <div class="card">
+                        <h4>Solver Selection</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label title="simpleFoam for steady flow, pimpleFoam for transient/time-varying flow.">
+                                    Solver
+                                    <button class="info-btn" data-info="solver">?</button>
+                                    <button class="default-btn" data-field="solver-select"
+                                        title="Set as default">⭐</button>
+                                </label>
+                                <select id="solver-select">
+                                    <option value="simpleFoam">simpleFoam (steady, incompressible)</option>
+                                    <option value="pimpleFoam" selected>pimpleFoam (transient, incompressible)</option>
+                                    <option value="rhoSimpleFoam">rhoSimpleFoam (steady, compressible)</option>
+                                    <option value="rhoPimpleFoam">rhoPimpleFoam (transient, compressible)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label title="kOmegaSST is generally best for aerodynamics/wind tunnels.">
+                                    Turbulence Model
+                                    <button class="info-btn" data-info="turbulence">?</button>
+                                    <button class="default-btn" data-field="turbulence-model"
+                                        title="Set as default">⭐</button>
+                                </label>
+                                <select id="turbulence-model">
+                                    <option value="kOmegaSST">k-omega SST</option>
+                                    <option value="kEpsilon">k-epsilon</option>
+                                    <option value="RNGkEpsilon">RNG k-epsilon</option>
+                                    <option value="SpalartAllmaras">Spalart-Allmaras</option>
+                                    <option value="laminar">Laminar (no turbulence)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h4>Time Controls</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label
+                                    title="Number of iterations for steady solvers or end time (s) for transient solvers.">
+                                    End Time / Iterations
+                                    <button class="info-btn" data-info="end-time">?</button>
+                                    <button class="default-btn" data-field="end-time" title="Set as default">⭐</button>
+                                </label>
+                                <input type="number" id="end-time" value="1000" step="10">
+                            </div>
+                            <div class="form-group">
+                                <label title="Time step size. Keep small (e.g. 0.001) for transient stability.">
+                                    Delta T
+                                    <button class="info-btn" data-info="delta-t">?</button>
+                                    <button class="default-btn" data-field="delta-t" title="Set as default">⭐</button>
+                                </label>
+                                <input type="number" id="delta-t" value="1e-5" step="1e-6">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label title="Controls when results are written. timeStep = every X iterations/steps.">
+                                    Write Control
+                                    <button class="info-btn" data-info="write-control">?</button>
+                                    <button class="default-btn" data-field="write-control"
+                                        title="Set as default">⭐</button>
+                                </label>
+                                <select id="write-control">
+                                    <option value="timeStep">Iteration Steps (timeStep)</option>
+                                    <option value="runTime">Simulation Time (runTime)</option>
+                                    <option value="adjustableRunTime">Adjustable Run Time</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label title="How often to write results (per write control).">
+                                    Write Interval
+                                    <button class="info-btn" data-info="write-interval">?</button>
+                                    <button class="default-btn" data-field="write-interval"
+                                        title="Set as default">⭐</button>
+                                </label>
+                                <input type="number" id="write-interval" value="100" step="10">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label title="How many recent time directories to keep (0 = keep all).">
+                                    Purge Write (0 = keep all)
+                                    <button class="info-btn" data-info="purge-write">?</button>
+                                    <button class="default-btn" data-field="purge-write"
+                                        title="Set as default">⭐</button>
+                                </label>
+                                <input type="number" id="purge-write" value="0" min="0">
+                            </div>
+                        </div>
+                        <div class="form-row" id="adaptive-row">
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="adjust-timestep" checked>
+                                    Adjust Time Step <button class="info-btn" data-info="adjust-timestep">?</button>
+                                    <button class="default-btn" data-field="adjust-timestep"
+                                        title="Set as default">⭐</button>
+                                </label>
+                            </div>
+                            <div class="form-group" id="max-co-group">
+                                <label>Max Courant Number <button class="info-btn" data-info="max-co">?</button> <button
+                                        class="default-btn" data-field="max-co"
+                                        title="Set as default">⭐</button></label>
+                                <input type="number" id="max-co" value="0.5" step="0.1" min="0.1" max="1.0">
+                            </div>
+                            <div class="form-group" id="max-delta-t-group">
+                                <label>Max Delta T <button class="info-btn" data-info="max-delta-t">?</button> <button
+                                        class="default-btn" data-field="max-delta-t"
+                                        title="Set as default">⭐</button></label>
+                                <input type="number" id="max-delta-t" value="1e-4" step="1e-5">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h4>Wall Treatment</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>
+                                    Wall Boundary Type
+                                    <button class="info-btn" data-info="wall-type">?</button>
+                                    <button class="default-btn" data-field="wall-type" title="Set as default">⭐</button>
+                                </label>
+                                <select id="wall-type">
+                                    <option value="noSlip">No-Slip (viscous)</option>
+                                    <option value="slip">Slip (frictionless)</option>
+                                    <option value="partialSlip">Partial Slip</option>
+                                    <option value="wallFunction">Wall Functions</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="wall-slip-group" style="display: none;">
+                                <label>
+                                    Wall Slip: <span id="wall-slip-value">50%</span>
+                                    <button class="info-btn" data-info="wall-slip">?</button>
+                                    <button class="default-btn" data-field="wall-slip-fraction"
+                                        title="Set as default">⭐</button>
+                                </label>
+                                <input type="range" id="wall-slip-fraction" min="0" max="100" value="50"
+                                    style="width: 100%; cursor: pointer;">
+                                <div
+                                    style="display: flex; justify-content: space-between; font-size: 0.75em; color: var(--text-muted);">
+                                    <span>0% (No-Slip)</span>
+                                    <span>100% (Full Slip)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h4>Solver Relaxation</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label title="Lower values (0.2-0.5) improve stability but slow down convergence.">
+                                    Pressure Relaxation
+                                    <button class="info-btn" data-info="relax-p">?</button>
+                                    <button class="default-btn" data-field="relax-p" title="Set as default">⭐</button>
+                                </label>
+                                <input type="number" id="relax-p" value="0.15" step="0.05" min="0.05" max="1">
+                            </div>
+                            <div class="form-group">
+                                <label title="Lower values (0.5-0.7) improve stability.">
+                                    Velocity Relaxation
+                                    <button class="info-btn" data-info="relax-u">?</button>
+                                    <button class="default-btn" data-field="relax-u" title="Set as default">⭐</button>
+                                </label>
+                                <input type="number" id="relax-u" value="0.3" step="0.05" min="0.1" max="1">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label title="Number of inner/outer loops per time step.">
+                                    SIMPLE/PIMPLE Correctors
+                                    <button class="info-btn" data-info="correctors">?</button>
+                                    <button class="default-btn" data-field="n-correctors"
+                                        title="Set as default">⭐</button>
+                                </label>
+                                <input type="number" id="n-correctors" value="2" min="1" max="10">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h4>Parallel Execution</h4>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="enable-parallel">
+                                Enable Parallel Run <button class="default-btn" data-field="enable-parallel"
+                                    title="Set as default">⭐</button>
+                            </label>
+                        </div>
+                        <div class="parallel-inputs" id="parallel-inputs" style="display: none;">
+                            <div class="form-group">
+                                <label>Number of Cores <button class="default-btn" data-field="num-cores"
+                                        title="Set as default">⭐</button></label>
+                                <input type="number" id="num-cores" value="4" min="2" max="64">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card advanced-settings">
+                        <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;"
+                            id="advanced-toggle">
+                            <h4 style="margin: 0;">🚀 Advanced Solver Settings</h4>
+                            <span id="advanced-toggle-icon">▼</span>
+                        </div>
+                        <div id="advanced-content" style="display: none; margin-top: 16px;">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Time Discretization (ddt) <button class="info-btn"
+                                            data-info="ddt-scheme">?</button>
+                                        <button class="default-btn" data-field="ddt-scheme"
+                                            title="Set as default">⭐</button></label>
+                                    <select id="ddt-scheme">
+                                        <option value="steadyState">steadyState (Simple)</option>
+                                        <option value="Euler">Euler (1st order transient)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>U Advection Scheme <button class="info-btn" data-info="div-u">?</button>
+                                        <button class="default-btn" data-field="div-scheme-u"
+                                            title="Set as default">⭐</button></label>
+                                    <select id="div-scheme-u">
+                                        <option value="linearUpwind">linearUpwind (Accurate)</option>
+                                        <option value="upwind">upwind (Very Stable)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Turbulence Advection <button class="info-btn" data-info="div-turb">?</button>
+                                        <button class="default-btn" data-field="div-scheme-turb"
+                                            title="Set as default">⭐</button></label>
+                                    <select id="div-scheme-turb">
+                                        <option value="upwind">upwind (Recommended)</option>
+                                        <option value="linearUpwind">linearUpwind (Aggressive)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Non-Ortho Correctors <button class="info-btn"
+                                            data-info="non-ortho">?</button>
+                                        <button class="default-btn" data-field="n-non-ortho"
+                                            title="Set as default">⭐</button></label>
+                                    <input type="number" id="n-non-ortho" value="0" min="0" max="4">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Pressure Convergence <button class="info-btn" data-info="res-p">?</button>
+                                        <button class="default-btn" data-field="res-p"
+                                            title="Set as default">⭐</button></label>
+                                    <input type="number" id="res-p" value="1e-4" step="1e-5">
+                                </div>
+                                <div class="form-group">
+                                    <label>Velocity Convergence <button class="info-btn" data-info="res-u">?</button>
+                                        <button class="default-btn" data-field="res-u"
+                                            title="Set as default">⭐</button></label>
+                                    <input type="number" id="res-u" value="1e-4" step="1e-5">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="action-bar">
+                        <button class="btn btn-success" id="run-simulation-btn" disabled>
+                            Run Simulation
+                        </button>
+                        <button class="btn btn-info" id="check-mesh-btn" disabled>
+                            🔍 Check Mesh
+                        </button>
+                        <button class="btn btn-danger" id="stop-simulation-btn" disabled>
+                            Stop
+                        </button>
+                        <button class="btn btn-secondary" id="save-defaults-btn">
+                            💾 Save as Defaults
+                        </button>
+                    </div>
+
+                    <!-- Check Mesh Results -->
+                    <div class="card" id="mesh-results-container" style="display: none; margin-top: 16px;">
+                        <h4>🔍 Mesh Quality Check</h4>
+                        <div id="mesh-results-status" style="font-weight: 600; margin-bottom: 8px;"></div>
+                        <div id="mesh-results-summary" style="font-size: 0.9em; color: var(--text-secondary);"></div>
+                        <pre id="mesh-results-details"
+                            style="background: #0a0a14; border-radius: 8px; padding: 12px; font-size: 0.75rem; color: #00ff00; max-height: 200px; overflow-y: auto; margin-top: 8px; display: none;"></pre>
+                        <button class="btn btn-secondary btn-sm"
+                            onclick="document.getElementById('mesh-results-details').style.display = document.getElementById('mesh-results-details').style.display === 'none' ? 'block' : 'none'"
+                            style="margin-top: 8px;">
+                            Toggle Details
+                        </button>
+                    </div>
+
+                    <div class="progress-container" id="progress-container" style="display: none;">
+                        <div class="progress-header">
+                            <span id="progress-step">Initializing...</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                        </div>
+                        <div class="progress-stats">
+                            <span id="progress-time">Time: 0m 0s</span>
+                            <span id="progress-iter">SimTime: 0</span>
+                            <span id="progress-eta">ETA: --</span>
+                        </div>
+                        <div class="storage-stats">
+                            <span>💾 <span id="current-storage">0 MB</span></span>
+                            <span id="est-size-container" style="display: none;">📈 Est: <span
+                                    id="estimated-total-size">-- MB</span></span>
+                        </div>
+                    </div>
+
+                    <div class="paraview-info" id="paraview-info" style="display: none;">
+                        <div class="paraview-header">ParaView</div>
+                        <p>Open this file in ParaView:</p>
+                        <code id="paraview-path" class="paraview-path"></code>
+                        <button class="btn btn-secondary btn-sm"
+                            onclick="navigator.clipboard.writeText(document.getElementById('paraview-path').textContent)">Copy
+                            Path</button>
+                    </div>
+
+                    <!-- Mini Log Viewer -->
+                    <div class="card" id="mini-log-container" style="margin-top: 16px;">
+                        <h4>Live Output</h4>
+                        <div id="mini-log"
+                            style="background: #0a0a14; border-radius: 8px; padding: 12px; font-family: 'Courier New', monospace; font-size: 0.75rem; color: #00ff00; height: 120px; overflow-y: auto;">
+                            <div style="color: var(--text-muted);">Waiting for simulation output...</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ParaView Helper Tab -->
+                <section id="paraview" class="tab-panel">
+                    <h2>ParaView Temporal Interpolator</h2>
+                    <p class="section-desc">Calculate settings for smooth video playback</p>
+
+                    <div class="card">
+                        <h4>Video Settings</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Target FPS</label>
+                                <input type="number" id="target-fps" value="30" min="1" max="120">
+                            </div>
+                            <div class="form-group">
+                                <label>Playback Speed</label>
+                                <input type="number" id="playback-speed" value="1.0" step="0.1" min="0.1">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Simulation End Time</label>
+                                <input type="number" id="pv-end-time" value="1000" step="1">
+                            </div>
+                            <div class="form-group">
+                                <label>Write Interval</label>
+                                <input type="number" id="pv-write-interval" value="100" step="1">
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" id="calculate-pv-btn">Calculate</button>
+                    </div>
+
+                    <div class="card results-card" id="pv-results" style="display: none;">
+                        <h4>Results</h4>
+                        <div class="result-grid">
+                            <div class="result-item">
+                                <span class="result-label">Simulation Timesteps</span>
+                                <span class="result-value" id="result-timesteps">-</span>
+                            </div>
+                            <div class="result-item">
+                                <span class="result-label">Video Duration</span>
+                                <span class="result-value" id="result-duration">-</span>
+                            </div>
+                            <div class="result-item">
+                                <span class="result-label">Total Frames Needed</span>
+                                <span class="result-value" id="result-frames">-</span>
+                            </div>
+                            <div class="result-item">
+                                <span class="result-label">Resample Factor</span>
+                                <span class="result-value" id="result-resample">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Logs Tab -->
+                <section id="logs" class="tab-panel">
+                    <h2>Live Logs</h2>
+                    <p class="section-desc">Real-time simulation output</p>
+
+                    <div class="log-controls">
+                        <div class="form-group">
+                            <label>Lines to show:</label>
+                            <select id="log-lines">
+                                <option value="50">50</option>
+                                <option value="100" selected>100</option>
+                                <option value="200">200</option>
+                                <option value="500">500</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-secondary" id="copy-logs-btn">📋 Copy Logs</button>
+                        <button class="btn btn-secondary" id="copy-logs-with-settings-btn">📋 Copy Logs +
+                            Settings</button>
+                        <button class="btn btn-secondary" id="clear-logs-btn">🗑️ Clear</button>
+                    </div>
+
+                    <div class="log-container">
+                        <pre id="log-output"></pre>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script src="static/js/api.js"></script>
+    <script src="static/js/websocket.js"></script>
+    <script src="static/js/app.js"></script>
+</body>
+
+</html>

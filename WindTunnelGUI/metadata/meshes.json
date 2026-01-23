@@ -1,0 +1,11 @@
+{
+  "79d5e818": {
+    "id": "79d5e818",
+    "name": "Run 1_Mesh",
+    "project": "default",
+    "path": "/home/reen/openfoam/Tutorials/Rotating_Setup_Case/OpenFOAM_GUI/WindTunnelGUI/meshes/79d5e818/Angle.unv",
+    "polymesh_path": "/home/reen/openfoam/Tutorials/Rotating_Setup_Case/OpenFOAM_GUI/WindTunnelGUI/meshes/79d5e818/polyMesh",
+    "run_id": "Run_1_20260121_102541",
+    "created": "2026-01-21T10:25:42.022080"
+  }
+}

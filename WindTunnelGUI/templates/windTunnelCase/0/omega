@@ -1,0 +1,54 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      omega;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dimensions      [0 0 -1 0 0 0 0];
+
+// omega = k^0.5 / (Cmu^0.25 * l), with l ~ 0.1 * hydraulic diameter
+internalField   uniform 50;
+
+boundaryField
+{
+    inlet
+    {
+        type            fixedValue;
+        value           uniform 50;
+    }
+
+    outlet
+    {
+        type            zeroGradient;
+    }
+
+    walls
+    {
+        type            omegaWallFunction;
+        value           uniform 50;
+    }
+
+    model
+    {
+        type            omegaWallFunction;
+        value           uniform 50;
+    }
+
+    ".*"
+    {
+        type            omegaWallFunction;
+        value           uniform 50;
+    }
+}
+
+// ************************************************************************* //

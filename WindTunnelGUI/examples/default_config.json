@@ -1,0 +1,30 @@
+{
+    "solver": "simpleFoam",
+    "turbulence_model": "kOmegaSST",
+    "steady": true,
+    "end_time": 1000,
+    "delta_t": 1,
+    "write_interval": 100,
+    "purge_write": 0,
+    "inlet_velocity": [
+        10,
+        0,
+        0
+    ],
+    "outlet_pressure": 0,
+    "wall_type": "slip",
+    "material": {
+        "preset": "air",
+        "density": 1.225,
+        "kinematic_viscosity": 1.5e-5,
+        "temperature": 293.15
+    },
+    "parallel": {
+        "enabled": false,
+        "num_cores": 4
+    },
+    "relaxation": {
+        "p": 0.3,
+        "U": 0.7
+    }
+}

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenFOAM GUI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/landing/css/styles.css">
+</head>
+
+<body>
+    <!-- Running Simulations Container -->
+    <div id="simulations-container" class="simulations-container"></div>
+
+    <!-- Ready Message (shown when no simulations running) -->
+    <div id="ready-bar" class="ready-bar">
+        <span class="ready-icon">✅</span>
+        <span class="ready-text">Ready to run simulations</span>
+    </div>
+
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">🌊</span>
+                <h1>OpenFOAM GUI</h1>
+            </div>
+            <p class="tagline">Unified interface for CFD simulations</p>
+            <span class="version">ESI OpenFOAM v2506</span>
+        </header>
+
+        <main class="tools-grid">
+            <a href="/windtunnel/" class="tool-card">
+                <div class="tool-icon">🌬️</div>
+                <div class="tool-info">
+                    <h2>Wind Tunnel</h2>
+                    <p>Static aerodynamic simulations for external flow analysis around objects.</p>
+                </div>
+                <div class="tool-features">
+                    <span class="feature">simpleFoam / pimpleFoam</span>
+                    <span class="feature">k-omega SST</span>
+                    <span class="feature">Steady / Transient</span>
+                </div>
+                <div class="tool-arrow">→</div>
+            </a>
+
+            <a href="/propeller/" class="tool-card">
+                <div class="tool-icon">🔄</div>
+                <div class="tool-info">
+                    <h2>Propeller Simulator</h2>
+                    <p>Rotating machinery simulations with AMI (sliding mesh) interfaces.</p>
+                </div>
+                <div class="tool-features">
+                    <span class="feature">pimpleFoam</span>
+                    <span class="feature">Rotor/Stator</span>
+                    <span class="feature">AMI Interface</span>
+                </div>
+                <div class="tool-arrow">→</div>
+            </a>
+
+            <div class="tool-card coming-soon">
+                <div class="tool-icon">🚧</div>
+                <div class="tool-info">
+                    <h2>More Coming Soon</h2>
+                    <p>Additional simulation tools will be added here.</p>
+                </div>
+                <div class="tool-features">
+                    <span class="feature">Heat Transfer</span>
+                    <span class="feature">Multiphase</span>
+                    <span class="feature">Combustion</span>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>OpenFOAM is a registered trademark of OpenCFD Ltd.</p>
+        </footer>
+    </div>
+
+    <script src="/static/landing/js/status.js"></script>
+</body>
+
+</html>
