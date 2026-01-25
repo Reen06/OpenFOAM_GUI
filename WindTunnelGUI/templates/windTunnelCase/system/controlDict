@@ -73,7 +73,7 @@ functions
     {
         type            forces;
         libs            (forces);
-        enabled         false;
+        enabled         true;
         writeControl    timeStep;
         writeInterval   10;
         patches         (model);

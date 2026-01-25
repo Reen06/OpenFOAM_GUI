@@ -38,7 +38,9 @@ class App {
         this.setupRunManager();
         this.setupMeshUpload();
         this.setupDefaultsButton();
+        this.setupDefaultsButton();
         this.setupInfoButtons();
+        this.setupPerformanceTab();
 
         // Load initial data
         this.loadRuns();
@@ -736,6 +738,14 @@ class App {
             const checkMeshBtn = document.getElementById('check-mesh-btn');
             checkMeshBtn.onclick = () => this.checkMesh();
 
+            // Load performance data if complete
+            if (details.status === 'completed' || details.status === 'success') {
+                document.getElementById('performance-tab-btn').style.display = 'flex';
+                this.loadPerformanceData();
+            } else {
+                document.getElementById('performance-tab-btn').style.display = 'none';
+            }
+
             // If simulation is running, show appropriate UI state
             const runBtn = document.getElementById('run-simulation-btn');
             const stopBtn = document.getElementById('stop-simulation-btn');
@@ -813,6 +823,22 @@ class App {
 
             // Connect WebSocket to this run
             this.connectWebSocket();
+
+            // Store paraview path for use in Performance tab (pvOutputs already fetched above)
+            this.currentParaviewPath = pvOutputs.foam_file || pvOutputs.case_dir || null;
+            this.updatePerformanceParaview();
+
+            // Navigate to appropriate tab based on run status
+            console.log('[VIEW-DEBUG] Run status:', details.status);
+            if (details.status === 'running') {
+                // Running simulation - go to Solver tab for live output
+                console.log('[VIEW-DEBUG] Navigating to Solver tab');
+                document.querySelector('[data-tab="solver"]')?.click();
+            } else if (details.status === 'completed' || details.status === 'success') {
+                // Completed run - go to Performance/Results tab  
+                console.log('[VIEW-DEBUG] Navigating to Performance tab');
+                document.querySelector('[data-tab="performance"]')?.click();
+            }
 
         } catch (e) {
             console.error('Failed to load run details:', e);
@@ -1572,6 +1598,180 @@ ${logOutput.textContent}`;
             saveBtn.textContent = '✓ All Saved!';
             saveBtn.disabled = false;
             setTimeout(() => saveBtn.textContent = '💾 Save All Defaults', 2000);
+        }
+    }
+    // ==================== Performance Tab ====================
+
+    setupPerformanceTab() {
+        const refreshBtn = document.getElementById('refresh-performance-btn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => this.loadPerformanceData(true));
+        }
+
+        // Mode selector
+        const modeSelect = document.getElementById('analysis-mode');
+        const timeWindowControls = document.getElementById('time-window-controls');
+        const excludeGroup = document.getElementById('exclude-fraction-group');
+
+        if (modeSelect) {
+            modeSelect.addEventListener('change', () => {
+                const mode = modeSelect.value;
+
+                // Show/hide time window controls
+                if (timeWindowControls) {
+                    timeWindowControls.style.display = mode === 'window' ? 'flex' : 'none';
+                }
+
+                // Show/hide exclude fraction (only for average mode)
+                if (excludeGroup) {
+                    excludeGroup.style.display = (mode === 'average') ? 'block' : 'none';
+                }
+
+                // Auto-refresh when mode changes (except 'saved' which is just reading file)
+                if (mode !== 'saved') {
+                    this.loadPerformanceData(false);
+                }
+            });
+        }
+
+        // Attach display settings listeners immediately (static HTML, always available)
+        if (typeof UnitFormatter !== 'undefined') {
+            UnitFormatter.attachSettingsListeners('wt-', () => {
+                // Re-render with cached data if available
+                if (this.cachedPerformanceData) {
+                    this.renderPerformanceData(this.cachedPerformanceData);
+                }
+            });
+        }
+    }
+
+    // Separate render function for re-formatting without API call
+    renderPerformanceData(data) {
+        const dataDiv = document.getElementById('performance-data');
+        const emptyDiv = document.getElementById('performance-empty');
+        const errorDiv = document.getElementById('performance-error');
+        const timeInfo = document.getElementById('analysis-time-info');
+
+        if (!data || data.status === 'no_data' || data.error) {
+            if (emptyDiv) emptyDiv.style.display = 'block';
+            if (dataDiv) dataDiv.style.display = 'none';
+            return;
+        }
+
+        if (dataDiv) {
+            dataDiv.style.display = 'block';
+            if (emptyDiv) emptyDiv.style.display = 'none';
+
+            const metrics = data.metrics || {};
+            const fmt = (typeof UnitFormatter !== 'undefined') ? UnitFormatter : null;
+
+            const setVal = (id, val, unit = '') => {
+                const el = document.getElementById(id);
+                if (!el) return;
+
+                if (val === undefined || val === null || (typeof val === 'number' && isNaN(val))) {
+                    el.textContent = '-';
+                } else if (typeof val === 'number' && fmt) {
+                    if (unit === 'N') {
+                        el.textContent = fmt.formatForce(val);
+                    } else if (unit === 'm²') {
+                        el.textContent = fmt.formatArea(val);
+                    } else if (unit) {
+                        el.textContent = fmt.format(val, unit);
+                    } else {
+                        el.textContent = fmt.formatCoefficient(val);
+                    }
+                } else if (typeof val === 'number') {
+                    el.textContent = val.toFixed(4) + (unit ? ' ' + unit : '');
+                } else {
+                    el.textContent = val + (unit ? ' ' + unit : '');
+                }
+            };
+
+            setVal('perf-cd', metrics.cd ?? metrics.cd_calc);
+            setVal('perf-cl', metrics.cl ?? metrics.cl_calc);
+            setVal('perf-drag', metrics.drag_force, 'N');
+            setVal('perf-lift', metrics.lift_force, 'N');
+
+            const drag = metrics.drag_force || 0;
+            const lift = metrics.lift_force || 0;
+            const ld = (drag !== 0) ? (lift / drag) : 0;
+            setVal('perf-ld', ld);
+
+            setVal('perf-area', data.config?.ref_area ?? data.config?.a_ref ?? 1.0, 'm²');
+
+            if (timeInfo && metrics.t_start !== undefined) {
+                const iterations = metrics.iterations_analyzed || 'N/A';
+                timeInfo.textContent = `Analysis range: ${metrics.t_start?.toFixed(4)}s - ${metrics.t_end?.toFixed(4)}s (${iterations} samples)`;
+            }
+
+            const rawEl = document.getElementById('perf-raw');
+            if (rawEl) rawEl.textContent = JSON.stringify(data, null, 2);
+        }
+    }
+
+    async loadPerformanceData(forceRefresh = false) {
+        if (!this.currentRunId) return;
+
+        const loading = document.getElementById('performance-loading');
+        const errorDiv = document.getElementById('performance-error');
+        const emptyDiv = document.getElementById('performance-empty');
+        const dataDiv = document.getElementById('performance-data');
+        const timeInfo = document.getElementById('analysis-time-info');
+
+        if (loading) loading.style.display = 'block';
+        if (dataDiv) dataDiv.style.display = 'none';
+        if (errorDiv) errorDiv.style.display = 'none';
+        if (emptyDiv) emptyDiv.style.display = 'none';
+        if (timeInfo) timeInfo.textContent = '';
+
+        try {
+            let data;
+
+            // Get analysis mode settings
+            const mode = document.getElementById('analysis-mode')?.value || 'saved';
+            const excludeFraction = parseFloat(document.getElementById('analysis-exclude-fraction')?.value || 20) / 100;
+            const timeStart = parseFloat(document.getElementById('analysis-start-time')?.value || 0);
+            const timeEnd = parseFloat(document.getElementById('analysis-end-time')?.value || 1);
+
+            if (forceRefresh) {
+                data = await API.triggerAnalysis(this.currentRunId);
+            } else {
+                data = await API.getPerformance(this.currentRunId, mode, excludeFraction, timeStart, timeEnd);
+            }
+
+            if (loading) loading.style.display = 'none';
+
+            // Cache the data for re-rendering on settings change
+            this.cachedPerformanceData = data;
+
+            if (data.status === 'no_data' || data.error) {
+                if (emptyDiv) emptyDiv.style.display = 'block';
+                if (data.error && errorDiv) {
+                    errorDiv.textContent = `Analysis Error: ${data.error}`;
+                    errorDiv.style.display = 'block';
+                }
+                return;
+            }
+
+            // Use the shared render function
+            this.renderPerformanceData(data);
+
+        } catch (e) {
+            if (loading) loading.style.display = 'none';
+            if (errorDiv) {
+                errorDiv.textContent = `Error loading data: ${e.message}`;
+                errorDiv.style.display = 'block';
+            }
+        }
+    }
+
+
+    // Update ParaView section in Performance tab
+    updatePerformanceParaview() {
+        const pvPathEl = document.getElementById('performance-pv-path');
+        if (pvPathEl) {
+            pvPathEl.textContent = this.currentParaviewPath || 'No ParaView file available';
         }
     }
 }

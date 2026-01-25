@@ -114,5 +114,22 @@ const API = {
 
     async getJobStatus(runId) {
         return this.fetch(`/api/job/${runId}/status`);
+    },
+
+    // Performance Analysis
+    async getPerformance(runId, mode = 'saved', excludeFraction = 0.2, timeStart = null, timeEnd = null) {
+        let url = `/api/run/${runId}/performance?mode=${mode}&exclude_fraction=${excludeFraction}`;
+        if (mode === 'window' && timeStart !== null && timeEnd !== null) {
+            url += `&time_start=${timeStart}&time_end=${timeEnd}`;
+        }
+        return this.fetch(url);
+    },
+
+
+    async triggerAnalysis(runId, settings = null) {
+        return this.fetch(`/api/run/${runId}/analyze`, {
+            method: 'POST',
+            body: settings ? JSON.stringify(settings) : undefined
+        });
     }
 };

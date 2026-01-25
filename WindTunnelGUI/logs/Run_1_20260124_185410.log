@@ -1,0 +1,446 @@
+[WORKFLOW] Applying settings...
+[SETTINGS] Updated controlDict: solver=pimpleFoam, endTime=1000.0
+[SETTINGS] Updated transportProperties: nu=1.5e-05
+[SETTINGS] Updated turbulenceProperties: model=kOmegaSST
+[WORKFLOW] Starting solver...
+[SOLVER] Decomposing for parallel run...
+[DECOMPOSE] Running: decomposePar -force
+/*---------------------------------------------------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2506                                  |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+Build  : _615aae61-20250627 OPENFOAM=2506 version=2506
+Arch   : "LSB;label=32;scalar=64"
+Exec   : decomposePar -force
+Date   : Jan 24 2026
+Time   : 18:54:19
+Host   : Vortex-Eclipse
+PID    : 242009
+I/O    : uncollated
+Case   : /home/reen/openfoam/Tutorials/Rotating_Setup_Case/OpenFOAM_GUI/WindTunnelGUI/runs/Run_1_20260124_185410/windTunnelCase
+nProcs : 1
+trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+allowSystemOperations : Allowing user-supplied system call operations
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+Create time
+
+
+
+Decomposing mesh
+
+Create mesh
+
+Calculating distribution of cells
+Decomposition method scotch [12] (region region0)
+
+Finished decomposition in 0.12 s
+
+Calculating original mesh data
+
+Distributing cells to processors
+
+Distributing faces to processors
+
+Distributing points to processors
+
+Constructing processor meshes
+
+Processor 0
+    Number of cells = 3916
+    Number of points = 988
+    Number of faces shared with processor 2 = 110
+    Number of faces shared with processor 8 = 44
+    Number of processor patches = 2
+    Number of processor faces = 154
+    Number of boundary faces = 1014
+
+Processor 1
+    Number of cells = 3950
+    Number of points = 854
+    Number of faces shared with processor 2 = 163
+    Number of faces shared with processor 3 = 85
+    Number of faces shared with processor 4 = 128
+    Number of faces shared with processor 5 = 131
+    Number of processor patches = 4
+    Number of processor faces = 507
+    Number of boundary faces = 139
+
+Processor 2
+    Number of cells = 3918
+    Number of points = 1020
+    Number of faces shared with processor 0 = 110
+    Number of faces shared with processor 1 = 163
+    Number of faces shared with processor 3 = 35
+    Number of faces shared with processor 4 = 17
+    Number of faces shared with processor 5 = 70
+    Number of faces shared with processor 8 = 36
+    Number of faces shared with processor 11 = 102
+    Number of processor patches = 7
+    Number of processor faces = 533
+    Number of boundary faces = 743
+
+Processor 3
+    Number of cells = 3914
+    Number of points = 879
+    Number of faces shared with processor 1 = 85
+    Number of faces shared with processor 2 = 35
+    Number of faces shared with processor 4 = 158
+    Number of faces shared with processor 5 = 24
+    Number of faces shared with processor 9 = 16
+    Number of faces shared with processor 11 = 161
+    Number of processor patches = 6
+    Number of processor faces = 479
+    Number of boundary faces = 289
+
+Processor 4
+    Number of cells = 3913
+    Number of points = 911
+    Number of faces shared with processor 1 = 128
+    Number of faces shared with processor 2 = 17
+    Number of faces shared with processor 3 = 158
+    Number of faces shared with processor 5 = 188
+    Number of faces shared with processor 9 = 83
+    Number of faces shared with processor 11 = 11
+    Number of processor patches = 6
+    Number of processor faces = 585
+    Number of boundary faces = 275
+
+Processor 5
+    Number of cells = 3934
+    Number of points = 844
+    Number of faces shared with processor 1 = 131
+    Number of faces shared with processor 2 = 70
+    Number of faces shared with processor 3 = 24
+    Number of faces shared with processor 4 = 188
+    Number of faces shared with processor 11 = 12
+    Number of processor patches = 5
+    Number of processor faces = 425
+    Number of boundary faces = 197
+
+Processor 6
+    Number of cells = 3971
+    Number of points = 843
+    Number of faces shared with processor 7 = 89
+    Number of faces shared with processor 8 = 168
+    Number of faces shared with processor 9 = 128
+    Number of faces shared with processor 10 = 43
+    Number of faces shared with processor 11 = 20
+    Number of processor patches = 5
+    Number of processor faces = 448
+    Number of boundary faces = 158
+
+Processor 7
+    Number of cells = 3984
+    Number of points = 848
+    Number of faces shared with processor 6 = 89
+    Number of faces shared with processor 8 = 236
+    Number of faces shared with processor 9 = 34
+    Number of faces shared with processor 10 = 84
+    Number of processor patches = 4
+    Number of processor faces = 443
+    Number of boundary faces = 183
+
+Processor 8
+    Number of cells = 3984
+    Number of points = 955
+    Number of faces shared with processor 0 = 44
+    Number of faces shared with processor 2 = 36
+    Number of faces shared with processor 6 = 168
+    Number of faces shared with processor 7 = 236
+    Number of faces shared with processor 9 = 37
+    Number of faces shared with processor 10 = 12
+    Number of faces shared with processor 11 = 88
+    Number of processor patches = 7
+    Number of processor faces = 621
+    Number of boundary faces = 369
+
+Processor 9
+    Number of cells = 3989
+    Number of points = 1020
+    Number of faces shared with processor 3 = 16
+    Number of faces shared with processor 4 = 83
+    Number of faces shared with processor 6 = 128
+    Number of faces shared with processor 7 = 34
+    Number of faces shared with processor 8 = 37
+    Number of faces shared with processor 10 = 118
+    Number of faces shared with processor 11 = 31
+    Number of processor patches = 7
+    Number of processor faces = 447
+    Number of boundary faces = 777
+
+Processor 10
+    Number of cells = 3991
+    Number of points = 886
+    Number of faces shared with processor 6 = 43
+    Number of faces shared with processor 7 = 84
+    Number of faces shared with processor 8 = 12
+    Number of faces shared with processor 9 = 118
+    Number of faces shared with processor 11 = 187
+    Number of processor patches = 5
+    Number of processor faces = 444
+    Number of boundary faces = 300
+
+Processor 11
+    Number of cells = 3961
+    Number of points = 961
+    Number of faces shared with processor 2 = 102
+    Number of faces shared with processor 3 = 161
+    Number of faces shared with processor 4 = 11
+    Number of faces shared with processor 5 = 12
+    Number of faces shared with processor 6 = 20
+    Number of faces shared with processor 8 = 88
+    Number of faces shared with processor 9 = 31
+    Number of faces shared with processor 10 = 187
+    Number of processor patches = 8
+    Number of processor faces = 612
+    Number of boundary faces = 454
+
+Number of processor faces = 2849
+Max number of cells = 3991 (0.984713% above average 3952.08)
+Max number of processor patches = 8 (45.4545% above average 5.5)
+Max number of faces between processors = 621 (30.7827% above average 474.833)
+
+Time = 0
+
+Processor 0: field transfer
+Processor 1: field transfer
+Processor 2: field transfer
+Processor 3: field transfer
+Processor 4: field transfer
+Processor 5: field transfer
+Processor 6: field transfer
+Processor 7: field transfer
+Processor 8: field transfer
+Processor 9: field transfer
+Processor 10: field transfer
+Processor 11: field transfer
+
+End
+
+[DECOMPOSE] completed (exit code: 0)
+[SOLVER] Running pimpleFoam...
+[SOLVER] Running: mpirun -np 12 pimpleFoam -parallel
+/*---------------------------------------------------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2506                                  |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+Build  : _615aae61-20250627 OPENFOAM=2506 version=2506
+Arch   : "LSB;label=32;scalar=64"
+Exec   : pimpleFoam -parallel
+Date   : Jan 24 2026
+Time   : 18:54:20
+Host   : Vortex-Eclipse
+PID    : 243490
+I/O    : uncollated
+Case   : /home/reen/openfoam/Tutorials/Rotating_Setup_Case/OpenFOAM_GUI/WindTunnelGUI/runs/Run_1_20260124_185410/windTunnelCase
+nProcs : 12
+Hosts  :
+(
+    (Vortex-Eclipse 12)
+)
+Pstream initialized with:
+    node communication : off [type=host] (12 ranks, 1 nodes)
+    topology controls  : none
+    consensus exchange : 0 (tuning: 0)
+    exchange algorithm : 0
+    commsType          : nonBlocking
+    polling iterations : 0
+trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+allowSystemOperations : Allowing user-supplied system call operations
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+Create time
+
+Create mesh for time = 0
+
+
+PIMPLE: no residual control data found. Calculations will employ 2 corrector loops
+
+Reading field p
+
+Reading field U
+
+Reading/calculating face flux field phi
+
+Selecting incompressible transport model Newtonian
+Selecting turbulence model type RAS
+Selecting RAS turbulence model kOmegaSST
+Selecting patchDistMethod meshWave
+RAS
+{
+    RASModel        kOmegaSST;
+    turbulence      on;
+    printCoeffs     on;
+    alphaK1         0.85;
+    alphaK2         1;
+    alphaOmega1     0.5;
+    alphaOmega2     0.856;
+    gamma1          0.555556;
+    gamma2          0.44;
+    beta1           0.075;
+    beta2           0.0828;
+    betaStar        0.09;
+    a1              0.31;
+    b1              1;
+    c1              10;
+    F3              false;
+    decayControl    false;
+    kInf            0;
+    omegaInf        0;
+}
+
+No MRF models present
+
+No finite volume options present
+Courant Number mean: 1.30588e-05 max: 0.00273856
+forces forces1:
+    rho: rhoInf
+    Freestream density (rhoInf) set to 1.225
+    Not including porosity effects
+
+Courant Number mean: 1.30588e-05 max: 0.00273856
+
+Starting time loop
+
+Courant Number mean: 1.30588e-05 max: 0.00273856
+deltaT = 1.2e-05
+Time = 1.2e-05
+
+PIMPLE: iteration 1
+smoothSolver:  Solving for Ux, Initial residual = 1, Final residual = 1.23611e-10, No Iterations 1
+smoothSolver:  Solving for Uy, Initial residual = 0, Final residual = 0, No Iterations 0
+smoothSolver:  Solving for Uz, Initial residual = 0, Final residual = 0, No Iterations 0
+GAMG:  Solving for p, Initial residual = 1, Final residual = 0.0513766, No Iterations 6
+time step continuity errors : sum local = 1.61021e-06, global = -1.50996e-07, cumulative = -1.50996e-07
+GAMG:  Solving for p, Initial residual = 0.976674, Final residual = 9.52677e-07, No Iterations 18
+time step continuity errors : sum local = 3.06617e-11, global = -3.28957e-12, cumulative = -1.50999e-07
+PIMPLE: iteration 2
+smoothSolver:  Solving for Ux, Initial residual = 0.999556, Final residual = 9.93266e-07, No Iterations 240
+smoothSolver:  Solving for Uy, Initial residual = 0.99669, Final residual = 9.65123e-07, No Iterations 228
+smoothSolver:  Solving for Uz, Initial residual = 0.996616, Final residual = 9.88043e-07, No Iterations 203
+GAMG:  Solving for p, Initial residual = 0.505611, Final residual = 0.0241256, No Iterations 5
+time step continuity errors : sum local = 1.70974e-05, global = 7.38255e-07, cumulative = 5.87256e-07
+GAMG:  Solving for p, Initial residual = 0.132671, Final residual = 4.61324e-07, No Iterations 13
+time step continuity errors : sum local = 1.52473e-08, global = -1.76451e-09, cumulative = 5.85491e-07
+smoothSolver:  Solving for omega, Initial residual = 0.744835, Final residual = 9.09696e-07, No Iterations 88
+smoothSolver:  Solving for k, Initial residual = 1, Final residual = 8.19079e-07, No Iterations 55
+ExecutionTime = 0.1 s  ClockTime = 0 s
+
+forces forces1 write:
+    Sum of forces
+        Total    : (112.974 0.384126 52.4622)
+        Pressure : (112.125 0.366518 52.5249)
+        Viscous  : (0.848627 0.0176084 -0.0626955)
+    Sum of moments
+        Total    : (-27.2306 10.8079 55.1501)
+        Pressure : (-27.264 10.7853 54.7258)
+        Viscous  : (0.0333414 0.0225804 0.424369)
+Courant Number mean: 0.00554921 max: 1.00935
+deltaT = 5.94441e-06
+Time = 1.79444e-05
+
+PIMPLE: iteration 1
+smoothSolver:  Solving for Ux, Initial residual = 1.89851e-05, Final residual = 5.40721e-11, No Iterations 1
+smoothSolver:  Solving for Uy, Initial residual = 5.76489e-05, Final residual = 1.67552e-10, No Iterations 1
+smoothSolver:  Solving for Uz, Initial residual = 6.07967e-05, Final residual = 1.78262e-10, No Iterations 1
+GAMG:  Solving for p, Initial residual = 0.999917, Final residual = 0.0656779, No Iterations 1
+time step continuity errors : sum local = 7.16193e-05, global = 2.66976e-06, cumulative = 3.25525e-06
+GAMG:  Solving for p, Initial residual = 0.999841, Final residual = 4.47474e-07, No Iterations 15
+time step continuity errors : sum local = 4.87941e-10, global = 4.95116e-12, cumulative = 3.25526e-06
+PIMPLE: iteration 2
+smoothSolver:  Solving for Ux, Initial residual = 0.726199, Final residual = 4.50027, No Iterations 1000
+smoothSolver:  Solving for Uy, Initial residual = 0.772607, Final residual = 1.73657, No Iterations 1000
+smoothSolver:  Solving for Uz, Initial residual = 0.76866, Final residual = 1.35803, No Iterations 1000
+GAMG:  Solving for p, Initial residual = 0.996565, Final residual = 0.0823059, No Iterations 3
+time step continuity errors : sum local = 0.520987, global = 0.150546, cumulative = 0.150549
+GAMG:  Solving for p, Initial residual = 0.0123914, Final residual = 7.76533e-07, No Iterations 10
+time step continuity errors : sum local = 0.00153048, global = -0.000490891, cumulative = 0.150058
+smoothSolver:  Solving for omega, Initial residual = 0.403637, Final residual = 9.87332e-07, No Iterations 148
+bounding omega, min: -0.492378 max: 2.69264e+08 average: 3.56605e+06
+smoothSolver:  Solving for k, Initial residual = 0.859174, Final residual = 9.75323e-07, No Iterations 172
+ExecutionTime = 0.33 s  ClockTime = 0 s
+
+forces forces1 write:
+    Sum of forces
+        Total    : (41257.7 7447.44 223548)
+        Pressure : (41741.8 5168 223666)
+        Viscous  : (-484.148 2279.43 -118.357)
+    Sum of moments
+        Total    : (-92931.9 16325 10250)
+        Pressure : (-92831 16353 10718.3)
+        Viscous  : (-100.89 -28.023 -468.329)
+Courant Number mean: 61.6121 max: 1704.05
+deltaT = 1.74421e-09
+Time = 1.79462e-05
+
+PIMPLE: iteration 1
+smoothSolver:  Solving for Ux, Initial residual = 1.25594e-05, Final residual = 2.05979e-11, No Iterations 1
+smoothSolver:  Solving for Uy, Initial residual = 3.23845e-05, Final residual = 6.24959e-11, No Iterations 1
+smoothSolver:  Solving for Uz, Initial residual = 3.89797e-05, Final residual = 5.53602e-11, No Iterations 1
+GAMG:  Solving for p, Initial residual = 1, Final residual = 0.0844408, No Iterations 1
+time step continuity errors : sum local = 0.000274564, global = -9.88618e-06, cumulative = 0.150048
+GAMG:  Solving for p, Initial residual = 0.999802, Final residual = 7.71855e-07, No Iterations 18
+time step continuity errors : sum local = 2.50998e-09, global = 5.23474e-10, cumulative = 0.150048
+PIMPLE: iteration 2
+smoothSolver:  Solving for Ux, Initial residual = 0.723732, Final residual = 5.57678e+06, No Iterations 1000
+smoothSolver:  Solving for Uy, Initial residual = 0.799807, Final residual = 3.11163e+06, No Iterations 1000
+smoothSolver:  Solving for Uz, Initial residual = 0.896996, Final residual = 5.9162e+06, No Iterations 1000
+GAMG:  Solving for p, Initial residual = 0.999574, Final residual = 0.0770938, No Iterations 3
+time step continuity errors : sum local = 8.85967e+06, global = -233914, cumulative = -233914
+GAMG:  Solving for p, Initial residual = 0.0506996, Final residual = 1.27529e-07, No Iterations 4
+time step continuity errors : sum local = 5.03836e+07, global = 7.779e+06, cumulative = 7.54508e+06
+[0] [stack trace]
+[0] =============
+[0] #1  Foam::sigFpe::sigHandler(int) in /usr/lib/openfoam/openfoam2506/platforms/linux64GccDPInt32Opt/lib/libOpenFOAM.so
+[0] #2  ? in /lib/x86_64-linux-gnu/libc.so.6
+[0] #3  Foam::symGaussSeidelSmoother::smooth(Foam::word const&, Foam::Field<double>&, Foam::lduMatrix const&, Foam::Field<double> const&, Foam::FieldField<Foam::Field, double> const&, Foam::UPtrList<Foam::lduInterfaceField const> const&, unsigned char, int) in /usr/lib/openfoam/openfoam2506/platforms/linux64GccDPInt32Opt/lib/libOpenFOAM.so
+[0] #4  Foam::symGaussSeidelSmoother::smooth(Foam::Field<double>&, Foam::Field<double> const&, unsigned char, int) const in /usr/lib/openfoam/openfoam2506/platforms/linux64GccDPInt32Opt/lib/libOpenFOAM.so
+[0] #5  Foam::smoothSolver::solve(Foam::Field<double>&, Foam::Field<double> const&, unsigned char) const in /usr/lib/openfoam/openfoam2506/platforms/linux64GccDPInt32Opt/lib/libOpenFOAM.so
+[0] #6  Foam::fvMatrix<double>::solveSegregated(Foam::dictionary const&) in /usr/lib/openfoam/openfoam2506/platforms/linux64GccDPInt32Opt/lib/libfiniteVolume.so
+[0] #7  ? in /usr/lib/openfoam/openfoam2506/platforms/linux64GccDPInt32Opt/lib/libfiniteVolume.so
+[0] #8  Foam::fvMesh::solve(Foam::fvMatrix<double>&, Foam::dictionary const&) const in /usr/lib/openfoam/openfoam2506/platforms/linux64GccDPInt32Opt/lib/libfiniteVolume.so
+[0] #9  ? in /usr/lib/openfoam/openfoam2506/platforms/linux64GccDPInt32Opt/lib/libincompressibleTurbulenceModels.so
+[0] #10  ? in /usr/lib/openfoam/openfoam2506/platforms/linux64GccDPInt32Opt/lib/libincompressibleTurbulenceModels.so
+[0] #11  ? in /usr/lib/openfoam/openfoam2506/platforms/linux64GccDPInt32Opt/bin/pimpleFoam
+[0] #12  ? in /lib/x86_64-linux-gnu/libc.so.6
+[0] #13  __libc_start_main in /lib/x86_64-linux-gnu/libc.so.6
+[0] #14  ? in /usr/lib/openfoam/openfoam2506/platforms/linux64GccDPInt32Opt/bin/pimpleFoam
+[0] =============
+[Vortex-Eclipse:243490] *** Process received signal ***
+[Vortex-Eclipse:243490] Signal: Floating point exception (8)
+[Vortex-Eclipse:243490] Signal code:  (-6)
+[Vortex-Eclipse:243490] Failing at address: 0x3e80003b722
+[Vortex-Eclipse:243490] [ 0] /lib/x86_64-linux-gnu/libc.so.6(+0x45330)[0x7716ff845330]
+[Vortex-Eclipse:243490] [ 1] /lib/x86_64-linux-gnu/libc.so.6(pthread_kill+0x11c)[0x7716ff89eb2c]
+[Vortex-Eclipse:243490] [ 2] /lib/x86_64-linux-gnu/libc.so.6(gsignal+0x1e)[0x7716ff84527e]
+[Vortex-Eclipse:243490] [ 3] /lib/x86_64-linux-gnu/libc.so.6(+0x45330)[0x7716ff845330]
+[Vortex-Eclipse:243490] [ 4] /usr/lib/openfoam/openfoam2506/platforms/linux64GccDPInt32Opt/lib/libOpenFOAM.so(_ZN4Foam22symGaussSeidelSmoother6smoothERKNS_4wordERNS_5FieldIdEERKNS_9lduMatrixERKS5_RKNS_10FieldFieldIS4_dEERKNS_8UPtrListIKNS_17lduInterfaceFieldEEEhi+0x2f0)[0x7717004a08e0]
+[Vortex-Eclipse:243490] [ 5] /usr/lib/openfoam/openfoam2506/platforms/linux64GccDPInt32Opt/lib/libOpenFOAM.so(_ZNK4Foam22symGaussSeidelSmoother6smoothERNS_5FieldIdEERKS2_hi+0x5c)[0x7717004a09cc]
+[Vortex-Eclipse:243490] [ 6] /usr/lib/openfoam/openfoam2506/platforms/linux64GccDPInt32Opt/lib/libOpenFOAM.so(_ZNK4Foam12smoothSolver5solveERNS_5FieldIdEERKS2_h+0x40b)[0x771700495b5b]
+[Vortex-Eclipse:243490] [ 7] /usr/lib/openfoam/openfoam2506/platforms/linux64GccDPInt32Opt/lib/libfiniteVolume.so(_ZN4Foam8fvMatrixIdE15solveSegregatedERKNS_10dictionaryE+0x44f)[0x7717031ace7f]
+[Vortex-Eclipse:243490] [ 8] /usr/lib/openfoam/openfoam2506/platforms/linux64GccDPInt32Opt/lib/libfiniteVolume.so(+0x51ea52)[0x771702d1ea52]
+[Vortex-Eclipse:243490] [ 9] /usr/lib/openfoam/openfoam2506/platforms/linux64GccDPInt32Opt/lib/libfiniteVolume.so(_ZNK4Foam6fvMesh5solveERNS_8fvMatrixIdEERKNS_10dictionaryE+0x2a)[0x771702d0882a]
+[Vortex-Eclipse:243490] [10] /usr/lib/openfoam/openfoam2506/platforms/linux64GccDPInt32Opt/lib/libincompressibleTurbulenceModels.so(+0xebc07)[0x7717016ebc07]
+[Vortex-Eclipse:243490] [11] /usr/lib/openfoam/openfoam2506/platforms/linux64GccDPInt32Opt/lib/libincompressibleTurbulenceModels.so(+0xcde22)[0x7717016cde22]
+[Vortex-Eclipse:243490] [12] pimpleFoam(+0x2078a)[0x62d666cfc78a]
+[Vortex-Eclipse:243490] [13] /lib/x86_64-linux-gnu/libc.so.6(+0x2a1ca)[0x7716ff82a1ca]
+[Vortex-Eclipse:243490] [14] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x8b)[0x7716ff82a28b]
+[Vortex-Eclipse:243490] [15] pimpleFoam(+0x235b5)[0x62d666cff5b5]
+[Vortex-Eclipse:243490] *** End of error message ***
+--------------------------------------------------------------------------
+Primary job  terminated normally, but 1 process returned
+a non-zero exit code. Per user-direction, the job has been aborted.
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+mpirun noticed that process rank 0 with PID 0 on node Vortex-Eclipse exited on signal 8 (Floating point exception).
+--------------------------------------------------------------------------
+[SOLVER] failed (exit code: 136)

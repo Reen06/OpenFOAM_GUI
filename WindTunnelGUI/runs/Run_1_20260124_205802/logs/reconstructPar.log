@@ -1,0 +1,464 @@
+/*---------------------------------------------------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2506                                  |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+Build  : _615aae61-20250627 OPENFOAM=2506 version=2506
+Arch   : "LSB;label=32;scalar=64"
+Exec   : reconstructPar
+Date   : Jan 24 2026
+Time   : 20:59:05
+Host   : Vortex-Eclipse
+PID    : 339767
+I/O    : uncollated
+Case   : /home/reen/openfoam/Tutorials/Rotating_Setup_Case/OpenFOAM_GUI/WindTunnelGUI/runs/Run_1_20260124_205802/windTunnelCase
+nProcs : 1
+trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+allowSystemOperations : Allowing user-supplied system call operations
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+Create time
+
+
+
+Reconstructing fields
+region=region0
+
+Time = 0.00481384
+
+Reconstructing FV fields
+
+    Reconstructing volScalarFields
+
+        k
+        nut
+        omega
+        p
+
+    Reconstructing volVectorFields
+
+        U
+
+    Reconstructing surfaceScalarFields
+
+        phi
+
+Reconstructing point fields
+
+No point fields
+
+No lagrangian fields
+
+No FA fields
+
+Time = 0.0100321
+
+Reconstructing FV fields
+
+    Reconstructing volScalarFields
+
+        k
+        nut
+        omega
+        p
+
+    Reconstructing volVectorFields
+
+        U
+
+    Reconstructing surfaceScalarFields
+
+        phi
+
+Reconstructing point fields
+
+No point fields
+
+No lagrangian fields
+
+No FA fields
+
+Time = 0.01535
+
+Reconstructing FV fields
+
+    Reconstructing volScalarFields
+
+        k
+        nut
+        omega
+        p
+
+    Reconstructing volVectorFields
+
+        U
+
+    Reconstructing surfaceScalarFields
+
+        phi
+
+Reconstructing point fields
+
+No point fields
+
+No lagrangian fields
+
+No FA fields
+
+Time = 0.0207921
+
+Reconstructing FV fields
+
+    Reconstructing volScalarFields
+
+        k
+        nut
+        omega
+        p
+
+    Reconstructing volVectorFields
+
+        U
+
+    Reconstructing surfaceScalarFields
+
+        phi
+
+Reconstructing point fields
+
+No point fields
+
+No lagrangian fields
+
+No FA fields
+
+Time = 0.0263738
+
+Reconstructing FV fields
+
+    Reconstructing volScalarFields
+
+        k
+        nut
+        omega
+        p
+
+    Reconstructing volVectorFields
+
+        U
+
+    Reconstructing surfaceScalarFields
+
+        phi
+
+Reconstructing point fields
+
+No point fields
+
+No lagrangian fields
+
+No FA fields
+
+Time = 0.0321319
+
+Reconstructing FV fields
+
+    Reconstructing volScalarFields
+
+        k
+        nut
+        omega
+        p
+
+    Reconstructing volVectorFields
+
+        U
+
+    Reconstructing surfaceScalarFields
+
+        phi
+
+Reconstructing point fields
+
+No point fields
+
+No lagrangian fields
+
+No FA fields
+
+Time = 0.0380695
+
+Reconstructing FV fields
+
+    Reconstructing volScalarFields
+
+        k
+        nut
+        omega
+        p
+
+    Reconstructing volVectorFields
+
+        U
+
+    Reconstructing surfaceScalarFields
+
+        phi
+
+Reconstructing point fields
+
+No point fields
+
+No lagrangian fields
+
+No FA fields
+
+Time = 0.0440925
+
+Reconstructing FV fields
+
+    Reconstructing volScalarFields
+
+        k
+        nut
+        omega
+        p
+
+    Reconstructing volVectorFields
+
+        U
+
+    Reconstructing surfaceScalarFields
+
+        phi
+
+Reconstructing point fields
+
+No point fields
+
+No lagrangian fields
+
+No FA fields
+
+Time = 0.0501868
+
+Reconstructing FV fields
+
+    Reconstructing volScalarFields
+
+        k
+        nut
+        omega
+        p
+
+    Reconstructing volVectorFields
+
+        U
+
+    Reconstructing surfaceScalarFields
+
+        phi
+
+Reconstructing point fields
+
+No point fields
+
+No lagrangian fields
+
+No FA fields
+
+Time = 0.0563527
+
+Reconstructing FV fields
+
+    Reconstructing volScalarFields
+
+        k
+        nut
+        omega
+        p
+
+    Reconstructing volVectorFields
+
+        U
+
+    Reconstructing surfaceScalarFields
+
+        phi
+
+Reconstructing point fields
+
+No point fields
+
+No lagrangian fields
+
+No FA fields
+
+Time = 0.0625936
+
+Reconstructing FV fields
+
+    Reconstructing volScalarFields
+
+        k
+        nut
+        omega
+        p
+
+    Reconstructing volVectorFields
+
+        U
+
+    Reconstructing surfaceScalarFields
+
+        phi
+
+Reconstructing point fields
+
+No point fields
+
+No lagrangian fields
+
+No FA fields
+
+Time = 0.0689058
+
+Reconstructing FV fields
+
+    Reconstructing volScalarFields
+
+        k
+        nut
+        omega
+        p
+
+    Reconstructing volVectorFields
+
+        U
+
+    Reconstructing surfaceScalarFields
+
+        phi
+
+Reconstructing point fields
+
+No point fields
+
+No lagrangian fields
+
+No FA fields
+
+Time = 0.075283
+
+Reconstructing FV fields
+
+    Reconstructing volScalarFields
+
+        k
+        nut
+        omega
+        p
+
+    Reconstructing volVectorFields
+
+        U
+
+    Reconstructing surfaceScalarFields
+
+        phi
+
+Reconstructing point fields
+
+No point fields
+
+No lagrangian fields
+
+No FA fields
+
+Time = 0.0817324
+
+Reconstructing FV fields
+
+    Reconstructing volScalarFields
+
+        k
+        nut
+        omega
+        p
+
+    Reconstructing volVectorFields
+
+        U
+
+    Reconstructing surfaceScalarFields
+
+        phi
+
+Reconstructing point fields
+
+No point fields
+
+No lagrangian fields
+
+No FA fields
+
+Time = 0.0882685
+
+Reconstructing FV fields
+
+    Reconstructing volScalarFields
+
+        k
+        nut
+        omega
+        p
+
+    Reconstructing volVectorFields
+
+        U
+
+    Reconstructing surfaceScalarFields
+
+        phi
+
+Reconstructing point fields
+
+No point fields
+
+No lagrangian fields
+
+No FA fields
+
+Time = 0.0948794
+
+Reconstructing FV fields
+
+    Reconstructing volScalarFields
+
+        k
+        nut
+        omega
+        p
+
+    Reconstructing volVectorFields
+
+        U
+
+    Reconstructing surfaceScalarFields
+
+        phi
+
+Reconstructing point fields
+
+No point fields
+
+No lagrangian fields
+
+No FA fields
+
+
+End
+

@@ -13,7 +13,21 @@ import asyncio
 import subprocess
 from pathlib import Path
 from datetime import datetime
+from datetime import datetime
 from typing import Optional, Dict, List, Tuple, Callable, Any
+
+# Import shared modules (path added in main.py)
+try:
+    from shared.performance_analyzer import PerformanceAnalyzer
+    from shared.functionobject_manager import FunctionObjectManager
+except ImportError:
+    # Fallback for direct execution
+    import sys
+    sys.path.append(str(Path(__file__).parent.parent.parent))
+    from shared.performance_analyzer import PerformanceAnalyzer
+    from shared.functionobject_manager import FunctionObjectManager
+
+
 
 
 class WorkflowManager:
@@ -28,8 +42,15 @@ class WorkflowManager:
     def __init__(self, openfoam_bashrc: str, job_manager, run_manager=None):
         self.openfoam_bashrc = openfoam_bashrc
         self.job_manager = job_manager
+
         self.run_manager = run_manager
         self.running_processes: Dict[str, asyncio.subprocess.Process] = {}
+        
+        # Initialize helpers
+        self.analyzer = PerformanceAnalyzer()
+        self.fo_manager = FunctionObjectManager()
+        
+
     
     async def run_cmd_async(
         self,
@@ -246,6 +267,7 @@ class WorkflowManager:
         run_dir: Path,
         solver_settings: Dict,
         material_settings: Dict,
+        analysis_settings: Optional[Dict] = None,
         log_callback: Optional[Callable] = None
     ) -> bool:
         """Execute the complete wind tunnel simulation workflow."""
@@ -264,6 +286,7 @@ class WorkflowManager:
             await self._apply_settings(
                 run_id, case_dir, logs_dir,
                 solver_settings, material_settings,
+                analysis_settings,
                 log_callback
             )
             
@@ -290,6 +313,51 @@ class WorkflowManager:
                     success=success
                 )
             
+            # Step 3: Performance Analysis
+            if success and analysis_settings and analysis_settings.get("enabled", True):
+                if log_callback:
+                    await log_callback("[ANALYSIS] Running performance analysis...")
+                
+                try:
+                    # Add u_inf and rho to analysis config
+                    analysis_config = analysis_settings.copy()
+                    
+                    # Get u_inf from inlet velocity magnitude
+                    inlet_vel = solver_settings.get("inlet_velocity", [10, 0, 0])
+                    u_inf = (inlet_vel[0]**2 + inlet_vel[1]**2 + inlet_vel[2]**2) ** 0.5
+                    analysis_config['u_inf'] = u_inf
+                    analysis_config['rho'] = material_settings.get("density", 1.225)
+                    
+                    summary = self.analyzer.analyze_windtunnel(run_dir / "windTunnelCase", analysis_config)
+                    
+                    if "error" not in summary:
+                        self.analyzer.save_summary(summary, run_dir)
+                        if self.run_manager:
+                            self.run_manager.record_solve_completion(
+                                run_id=run_id,
+                                solver_config=solver_settings,
+                                material_config=material_settings,
+                                started_at=started_at,
+                                completed_at=completed_at,
+                                success=success,
+                                performance_summary=summary
+                            )
+                        if log_callback:
+                            await log_callback(f"[ANALYSIS] Analysis complete. Drag: {summary['metrics'].get('drag_force',0):.2f} N")
+                    else:
+                        if log_callback:
+                            await log_callback(f"[ANALYSIS] Analysis skipped: {summary.get('error')}")
+                            
+                except Exception as e:
+                    if log_callback:
+                        await log_callback(f"[ANALYSIS] Error: {e}")
+            
+            if success and log_callback:
+                await log_callback({
+                    "type": "complete",
+                    "message": "Simulation finished successfully"
+                })
+            
             return success
             
         except Exception as e:
@@ -304,6 +372,7 @@ class WorkflowManager:
         logs_dir: Path,
         solver_settings: Dict,
         material_settings: Dict,
+        analysis_settings: Optional[Dict] = None,
         log_callback: Optional[Callable] = None
     ):
         """Apply solver and material settings to case files."""
@@ -399,7 +468,72 @@ class WorkflowManager:
             # Update wall type
             if wall_type == "noSlip":
                 content = re.sub(r'(walls\s*\{[^}]*type\s+)slip;', r'\1noSlip;', content)
-            elif wall_type == "partialSlip":
+            
+            # Apply slip fraction if partialSlip
+            if wall_type == "partialSlip":
+                # This is more complex, requiring fixedValue and slip fraction value
+                # Simplified for now: just keep as slip or noSlip
+                pass
+                
+            u_file.write_text(content)
+
+        # Configure Function Objects (Forces/Analysis)
+        if analysis_settings and analysis_settings.get("enabled", True):
+            if log_callback:
+                await log_callback("[SETTINGS] Configuring performance analysis...")
+            
+            try:
+                # 1. Detect patches
+                patches = analysis_settings.get("patches")
+                if not patches:
+                    # Auto-detect
+                    patches = PerformanceAnalyzer.detect_patches(
+                        case_dir / "constant" / "polyMesh" / "boundary",
+                        ["model", "wing", "body", "object", "car", "vehicle"]
+                    )
+                
+                if patches:
+                    fom = FunctionObjectManager()
+                    
+                    # 2. Generate dictionaries
+                    forces_content = fom.generate_forces_dict(
+                        name="forces1",
+                        patches=patches,
+                        rho_val=float(material_settings.get("density", 1.225))
+                    )
+                    
+                    coeffs_content = fom.generate_force_coeffs_dict(
+                        name="forceCoeffs1",
+                        patches=patches,
+                        rho_val=float(material_settings.get("density", 1.225)),
+                        u_inf=float(solver_settings.get("inlet_velocity", [10,0,0])[0]),
+                        l_ref=float(analysis_settings.get("ref_length", 1.0)),
+                        a_ref=float(analysis_settings.get("ref_area", 1.0)),
+                        lift_dir=[0, 0, 1], # Default Z-up
+                        drag_dir=[1, 0, 0]  # Default X-flow
+                    )
+                    
+                    # 3. Update controlDict
+                    cd_content = control_dict.read_text()
+                    new_content = fom.update_controldict(cd_content, {
+                        "forces1": forces_content,
+                        "forceCoeffs1": coeffs_content
+                    })
+                    control_dict.write_text(new_content)
+                    
+                    if log_callback:
+                        await log_callback(f"[SETTINGS] Analysis enabled for patches: {patches}")
+                else:
+                    if log_callback:
+                        await log_callback("[SETTINGS] Warning: No model patches found for analysis")
+                        
+            except Exception as e:
+                # Don't fail the whole run just for analysis config
+                if log_callback:
+                    await log_callback(f"[SETTINGS] Analysis config failed: {e}")
+                    import traceback
+                    traceback.print_exc()
+            if wall_type == "partialSlip":
                 # OpenFOAM partialSlip: valueFraction 0 = full slip, 1 = no-slip
                 # Our slider: 0% = no-slip, 100% = full slip
                 # So we invert: valueFraction = 1 - wall_slip_fraction
@@ -461,7 +595,69 @@ class WorkflowManager:
             for field in ['k', 'omega', 'epsilon']:
                 content = re.sub(rf'div\(phi,{field}\)\s+[^;]+;', f'div(phi,{field}) {turb_scheme_str};', content)
                 
+                
             fv_schemes.write_text(content)
+
+        # Configure Function Objects (forces & forceCoeffs)
+        if analysis_settings and analysis_settings.get("enabled", True):
+            if log_callback:
+                await log_callback("[SETTINGS] Configuring function objects...")
+                
+            # Detect geometry patches if not specified or "auto"
+            patches = analysis_settings.get("geometry_patches", [])
+            if not patches or patches == ["auto"] or (isinstance(patches, str) and patches == "auto"):
+                boundary_file = case_dir / "constant" / "polyMesh" / "boundary"
+                detected = self.analyzer.detect_patches(boundary_file, ["model", "car", "wing", "body", "object"])
+                if detected:
+                    patches = [p['name'] for p in detected]
+                    if log_callback:
+                        await log_callback(f"[SETTINGS] Auto-detected geometry patches: {patches}")
+                else:
+                    patches = ["model"] # Fallback
+            elif isinstance(patches, str):
+                patches = [p.strip() for p in patches.split(',')]
+            
+            # Prepare configs
+            rho = material_settings.get("density", 1.225)
+            
+            inlet_vel = solver_settings.get("inlet_velocity", [10, 0, 0])
+            u_inf = (inlet_vel[0]**2 + inlet_vel[1]**2 + inlet_vel[2]**2) ** 0.5
+            if u_inf == 0: u_inf = 10.0
+            
+            # Generate dicts
+            forces_content = self.fo_manager.generate_forces_dict(
+                name="forces1",
+                patches=patches,
+                rho_val=rho
+            )
+            
+            coeffs_content = self.fo_manager.generate_force_coeffs_dict(
+                name="forceCoeffs1",
+                patches=patches,
+                rho_val=rho,
+                u_inf=u_inf,
+                l_ref=analysis_settings.get("ref_length", 1.0),
+                a_ref=analysis_settings.get("ref_area", 1.0),
+                drag_dir=analysis_settings.get("drag_axis", [1, 0, 0]),
+                lift_dir=analysis_settings.get("lift_axis", [0, 0, 1])
+            )
+            
+            # Inject into controlDict
+            control_dict = case_dir / "system" / "controlDict"
+            if control_dict.exists():
+                content = control_dict.read_text()
+                
+                # Combine both objects
+                new_objects = {
+                    "forces1": forces_content,
+                    "forceCoeffs1": coeffs_content
+                }
+                
+                new_content = self.fo_manager.update_controldict(content, new_objects)
+                control_dict.write_text(new_content)
+                
+                if log_callback:
+                    await log_callback("[SETTINGS] Injected forces and forceCoeffs functionObjects")
     
     async def _run_solver(
         self,

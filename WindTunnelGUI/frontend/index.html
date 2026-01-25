@@ -53,6 +53,10 @@
                     <span class="tab-icon">⚙️</span>
                     <span class="tab-label">Solver + Controls</span>
                 </button>
+                <button class="tab-btn" data-tab="performance" id="performance-tab-btn" style="display: none;">
+                    <span class="tab-icon">📊</span>
+                    <span class="tab-label">Performance</span>
+                </button>
                 <button class="tab-btn" data-tab="paraview">
                     <span class="tab-icon">🎬</span>
                     <span class="tab-label">ParaView Helper</span>
@@ -644,6 +648,168 @@
                     </div>
                 </section>
 
+                <!-- Performance Tab -->
+                <section id="performance" class="tab-panel">
+                    <h2>Performance Analysis</h2>
+                    <p class="section-desc">Aerodynamic forces and coefficients</p>
+
+                    <!-- Time Range Selector -->
+                    <div class="card" style="margin-bottom: 16px;">
+                        <h4>📊 Analysis Mode</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Time Range</label>
+                                <select id="analysis-mode">
+                                    <option value="saved">Saved Analysis (Full Run)</option>
+                                    <option value="average">Recalculate Average (80% of run)</option>
+                                    <option value="latest">Latest Timestep Only</option>
+                                    <option value="window">Custom Time Window</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="exclude-fraction-group">
+                                <label>Initial % to Exclude</label>
+                                <input type="number" id="analysis-exclude-fraction" value="20" min="0" max="80"
+                                    step="5">
+                            </div>
+                        </div>
+                        <div class="form-row" id="time-window-controls" style="display: none;">
+                            <div class="form-group">
+                                <label>Start Time (s)</label>
+                                <input type="number" id="analysis-start-time" value="0" step="0.001" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label>End Time (s)</label>
+                                <input type="number" id="analysis-end-time" value="1" step="0.001" min="0">
+                            </div>
+                        </div>
+                        <p id="analysis-time-info"
+                            style="font-size: 0.85em; color: var(--text-muted); margin-top: 8px;"></p>
+                    </div>
+
+                    <!-- Display Settings -->
+                    <div class="card" id="wt-display-settings-container" style="margin-bottom: 16px;">
+                        <h4 style="margin-top: 0; margin-bottom: 12px;">⚙️ Display Settings</h4>
+                        <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: center;">
+                            <div class="form-group" style="margin: 0;">
+                                <label style="display: flex; align-items: center; gap: 6px; font-size: 0.85em;">
+                                    Unit System
+                                    <select id="wt-unit-system" style="padding: 4px 8px; font-size: 0.85em;">
+                                        <option value="metric">Metric (N, Nm)</option>
+                                        <option value="imperial">Imperial (lbf, ft·lbf)</option>
+                                    </select>
+                                </label>
+                            </div>
+
+                            <label
+                                style="display: flex; align-items: center; gap: 6px; font-size: 0.85em; cursor: pointer;">
+                                <input type="checkbox" id="wt-auto-prefix" checked>
+                                Auto-prefix (kN, mN)
+                            </label>
+
+                            <label
+                                style="display: flex; align-items: center; gap: 6px; font-size: 0.85em; cursor: pointer;">
+                                <input type="checkbox" id="wt-scientific-notation">
+                                Scientific notation
+                            </label>
+
+                            <div class="form-group" style="margin: 0;">
+                                <label style="display: flex; align-items: center; gap: 6px; font-size: 0.85em;">
+                                    Decimals
+                                    <input type="number" id="wt-decimal-places" value="4" min="1" max="8"
+                                        style="width: 50px; padding: 4px; font-size: 0.85em;">
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <div class="card">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h4 style="margin: 0;">Analysis Results</h4>
+                            <div class="action-buttons">
+                                <button class="btn btn-primary btn-sm" id="refresh-performance-btn">🔄 Refresh
+                                    Analysis</button>
+                            </div>
+                        </div>
+
+
+                        <div id="performance-loading" style="display: none; text-align: center; padding: 20px;">
+                            <div class="spinner"></div>
+                            <p>Analyzing results...</p>
+                        </div>
+
+                        <div id="performance-error"
+                            style="display: none; color: var(--error); padding: 10px; border: 1px solid var(--error); border-radius: 4px; margin-bottom: 15px;">
+                        </div>
+
+                        <div id="performance-data" style="display: none;">
+                            <!-- Metrics Grid -->
+                            <div class="result-grid" style="margin-bottom: 20px;">
+                                <div class="result-item">
+                                    <span class="result-label">Drag Coefficient (Cd)</span>
+                                    <span class="result-value" id="perf-cd">-</span>
+                                </div>
+                                <div class="result-item">
+                                    <span class="result-label">Lift Coefficient (Cl)</span>
+                                    <span class="result-value" id="perf-cl">-</span>
+                                </div>
+                                <div class="result-item">
+                                    <span class="result-label">Drag Force</span>
+                                    <span class="result-value" id="perf-drag">- N</span>
+                                </div>
+                                <div class="result-item">
+                                    <span class="result-label">Lift Force</span>
+                                    <span class="result-value" id="perf-lift">- N</span>
+                                </div>
+                                <div class="result-item">
+                                    <span class="result-label">L/D Ratio</span>
+                                    <span class="result-value" id="perf-ld">-</span>
+                                </div>
+                                <div class="result-item">
+                                    <span class="result-label">Frontal Area</span>
+                                    <span class="result-value" id="perf-area">- m²</span>
+                                </div>
+                            </div>
+
+                            <!-- Detailed JSON View -->
+                            <details>
+                                <summary style="cursor: pointer; margin-bottom: 10px; color: var(--text-secondary);">
+                                    Show Raw Data</summary>
+                                <pre id="perf-raw"
+                                    style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 4px; overflow: auto; max-height: 300px; font-size: 0.8em;"></pre>
+                            </details>
+                        </div>
+
+                        <div id="performance-empty"
+                            style="text-align: center; padding: 20px; color: var(--text-secondary);">
+                            No performance data available for this run.
+                        </div>
+                    </div>
+
+                    <!-- ParaView Section (shown at bottom of Performance tab) -->
+                    <div class="card" id="performance-paraview-section" style="margin-top: 16px;">
+                        <h4>🎬 Open in ParaView</h4>
+                        <p style="color: var(--text-muted); margin-bottom: 12px;">Visualize the simulation results in
+                            ParaView</p>
+                        <div
+                            style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+                            <code id="performance-pv-path"
+                                style="word-break: break-all; font-size: 0.9em;">Loading...</code>
+                        </div>
+                        <div class="action-buttons" style="display: flex; gap: 8px;">
+                            <button class="btn btn-secondary btn-sm"
+                                onclick="navigator.clipboard.writeText(document.getElementById('performance-pv-path').textContent); alert('Path copied!')">
+                                📋 Copy Path
+                            </button>
+                            <button class="btn btn-secondary btn-sm"
+                                onclick="document.querySelector('[data-tab=&quot;paraview&quot;]')?.click()">
+                                🔧 ParaView Helper
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
                 <!-- Logs Tab -->
                 <section id="logs" class="tab-panel">
                     <h2>Live Logs</h2>
@@ -673,6 +839,7 @@
         </main>
     </div>
 
+    <script src="/shared/unit_formatter.js"></script>
     <script src="static/js/api.js"></script>
     <script src="static/js/websocket.js"></script>
     <script src="static/js/app.js"></script>

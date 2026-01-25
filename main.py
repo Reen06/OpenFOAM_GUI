@@ -85,6 +85,12 @@ async def home_redirect():
 # Mount landing page static files
 app.mount("/static/landing", StaticFiles(directory=str(LANDING_DIR)), name="landing-static")
 
+# Mount shared static files (unit_formatter.js, etc.)
+SHARED_DIR = SCRIPT_DIR / "shared"
+if SHARED_DIR.exists():
+    app.mount("/shared", StaticFiles(directory=str(SHARED_DIR)), name="shared-static")
+    print(f"[STARTUP] Mounted shared files at /shared")
+
 
 # ============================================================================
 # Mount Sub-Applications

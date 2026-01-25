@@ -14,6 +14,11 @@ import shutil
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, List, Any
+
+# Add shared modules to path
+SCRIPT_DIR = Path(__file__).parent.absolute()
+sys.path.append(str(SCRIPT_DIR.parent.parent))  # OpenFOAM_GUI root to access shared
+
 import json
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Form
@@ -105,6 +110,10 @@ app = FastAPI(
 
 # Mount static files
 app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
+# Mount shared files (for unit_formatter.js, etc.)
+SHARED_DIR = PROJECT_DIR.parent / "shared"
+if SHARED_DIR.exists():
+    app.mount("/shared", StaticFiles(directory=str(SHARED_DIR)), name="shared")
 
 
 # ============================================================================
@@ -147,10 +156,23 @@ class MaterialSettings(BaseModel):
     dynamic_viscosity: float = 1.825e-5
 
 
+class AnalysisSettings(BaseModel):
+    enabled: bool = True
+    geometry_patches: List[str] = ["model", "wing"]
+    drag_axis: List[float] = [1.0, 0.0, 0.0]
+    lift_axis: List[float] = [0.0, 0.0, 1.0]
+    ref_area: float = 1.0
+    ref_length: float = 1.0
+    time_mode: str = "latest"  # latest, window
+    average: bool = True
+    exclude_fraction: float = 0.2
+
+
 class RunStartRequest(BaseModel):
     run_id: str
     solver_settings: SolverSettings
     material_settings: MaterialSettings
+    analysis_settings: Optional[AnalysisSettings] = None
 
 
 # ============================================================================
@@ -554,6 +576,7 @@ async def start_run(run_id: str, request: RunStartRequest):
             run_dir=run_dir,
             solver_settings=request.solver_settings.model_dump(),
             material_settings=request.material_settings.model_dump(),
+            analysis_settings=request.analysis_settings.model_dump() if request.analysis_settings else None,
             log_callback=log_callback
         )
     )
@@ -582,6 +605,119 @@ async def get_run_paraview(run_id: str):
     """Get ParaView output paths for a run."""
     outputs = run_manager.get_paraview_outputs(run_id)
     return outputs
+
+
+@app.get("/api/run/{run_id}/performance")
+async def get_run_performance(
+    run_id: str,
+    mode: str = "saved",  # saved, latest, average, window
+    time_start: float = None,
+    time_end: float = None,
+    exclude_fraction: float = 0.2
+):
+    """
+    Get performance analysis results for a run.
+    
+    Query params:
+    - mode: 'saved' (read cached file), 'latest' (last timestep), 'average' (full avg), 'window' (time range)
+    - time_start/time_end: For 'window' mode
+    - exclude_fraction: Fraction of initial time to exclude for 'average' mode
+    """
+    run_dir = run_manager.get_run_directory(run_id)
+    if not run_dir:
+        raise HTTPException(status_code=404, detail="Run not found")
+    
+    # For 'saved' mode, just return the cached summary file
+    if mode == "saved":
+        summary_file = run_dir / "postProcessingSummary.json"
+        if summary_file.exists():
+            return json.loads(summary_file.read_text())
+        # Fall through to calculate if no saved file
+        mode = "average"
+    
+    # Get run details for config
+    details = run_manager.get_run_details(run_id)
+    config = {
+        'drag_axis': [1, 0, 0],
+        'lift_axis': [0, 0, 1],
+        'exclude_fraction': exclude_fraction,
+    }
+    
+    # Add analysis mode
+    if mode == "latest":
+        config['average'] = False
+    elif mode == "window" and time_start is not None and time_end is not None:
+        config['time_start'] = time_start
+        config['time_end'] = time_end
+        config['use_time_window'] = True
+    else:  # average mode
+        config['average'] = True
+    
+    # Add solver/material info for coefficient calculation
+    if details and "solver_settings" in details:
+        inlet_vel = details["solver_settings"].get("inlet_velocity", [10, 0, 0])
+        u_inf = (inlet_vel[0]**2 + inlet_vel[1]**2 + inlet_vel[2]**2) ** 0.5
+        config['u_inf'] = u_inf
+    else:
+        config['u_inf'] = 10.0
+        
+    if details and "material_settings" in details:
+        config['rho'] = details["material_settings"].get("density", 1.225)
+    else:
+        config['rho'] = 1.225
+    
+    config['a_ref'] = 1.0  # Default reference area
+    
+    try:
+        summary = workflow_manager.analyzer.analyze_windtunnel(run_dir / "windTunnelCase", config)
+        
+        # Add time range info to response
+        summary['analysis_mode'] = mode
+        summary['config'] = {
+            'time_start': time_start,
+            'time_end': time_end,
+            'exclude_fraction': exclude_fraction
+        }
+        
+        return summary
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/run/{run_id}/analyze")
+async def trigger_analysis(run_id: str, settings: AnalysisSettings = None):
+    """Manually trigger performance analysis and save results."""
+    run_dir = run_manager.get_run_directory(run_id)
+    if not run_dir:
+        raise HTTPException(status_code=404, detail="Run not found")
+        
+    details = run_manager.get_run_details(run_id)
+    if not details or details.get("status") not in ["completed", "success"]:
+        raise HTTPException(status_code=400, detail="Run must be completed to analyze")
+    
+    # Use provided settings or defaults
+    config = settings.model_dump() if settings else {}
+    if not config and "analysis_settings" in details:
+        config = details["analysis_settings"]
+    if not config:
+        config = AnalysisSettings().model_dump()
+        
+    # Add solver/material info
+    if "solver_settings" in details:
+         inlet_vel = details["solver_settings"].get("inlet_velocity", [10, 0, 0])
+         u_inf = (inlet_vel[0]**2 + inlet_vel[1]**2 + inlet_vel[2]**2) ** 0.5
+         config['u_inf'] = u_inf
+         
+    if "material_settings" in details:
+        config['rho'] = details["material_settings"].get("density", 1.225)
+
+    try:
+        summary = workflow_manager.analyzer.analyze_windtunnel(run_dir / "windTunnelCase", config)
+        workflow_manager.analyzer.save_summary(summary, run_dir)
+        return summary
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 
 
 # ============================================================================

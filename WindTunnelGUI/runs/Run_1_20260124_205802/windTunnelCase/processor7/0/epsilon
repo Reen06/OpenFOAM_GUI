@@ -1,0 +1,82 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2506                                  |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    arch        "LSB;label=32;scalar=64";
+    class       volScalarField;
+    location    "0";
+    object      epsilon;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dimensions      [0 2 -3 0 0 0 0];
+
+internalField   uniform 0.1;
+
+boundaryField
+{
+    outlet
+    {
+        type            zeroGradient;
+    }
+    walls
+    {
+        type            epsilonWallFunction;
+        value           uniform 0.1;
+    }
+    inlet
+    {
+        type            fixedValue;
+        value           nonuniform List<scalar> 0();
+    }
+    model
+    {
+        type            epsilonWallFunction;
+        value           uniform 0.1;
+    }
+    procBoundary7to1
+    {
+        type            processor;
+        value           uniform 0.1;
+    }
+    procBoundary7to2
+    {
+        type            processor;
+        value           uniform 0.1;
+    }
+    procBoundary7to3
+    {
+        type            processor;
+        value           uniform 0.1;
+    }
+    procBoundary7to4
+    {
+        type            processor;
+        value           uniform 0.1;
+    }
+    procBoundary7to5
+    {
+        type            processor;
+        value           uniform 0.1;
+    }
+    procBoundary7to6
+    {
+        type            processor;
+        value           uniform 0.1;
+    }
+    procBoundary7to8
+    {
+        type            processor;
+        value           uniform 0.1;
+    }
+}
+
+
+// ************************************************************************* //
