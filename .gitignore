@@ -1,0 +1,90 @@
+# ============================================
+# OpenFOAM GUI - Git Ignore Configuration
+# ============================================
+
+# -----------------------------------------
+# Simulation Runs (large files, user data)
+# -----------------------------------------
+*/runs/
+PropellerGUI/runs/
+WindTunnelGUI/runs/
+
+# -----------------------------------------
+# Mesh Files (uploaded by user)
+# -----------------------------------------
+*/meshes/
+PropellerGUI/meshes/
+WindTunnelGUI/meshes/
+*.unv
+*.msh
+
+# -----------------------------------------
+# Log Files (generated during runs)
+# -----------------------------------------
+*/logs/
+PropellerGUI/logs/
+WindTunnelGUI/logs/
+*.log
+
+# -----------------------------------------
+# Metadata (run state, can be regenerated)
+# -----------------------------------------
+*/metadata/
+PropellerGUI/metadata/
+WindTunnelGUI/metadata/
+
+# -----------------------------------------
+# Python Cache
+# -----------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# -----------------------------------------
+# Virtual Environment
+# -----------------------------------------
+venv/
+ENV/
+env/
+.venv/
+
+# -----------------------------------------
+# IDE / Editor
+# -----------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# -----------------------------------------
+# OS Generated
+# -----------------------------------------
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# -----------------------------------------
+# OpenFOAM Generated Files (if any leak)
+# -----------------------------------------
+*/constant/polyMesh/
+*/processor*/
+*.foam
