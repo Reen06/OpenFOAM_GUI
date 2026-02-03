@@ -1,0 +1,75 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      epsilon;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Turbulent dissipation rate
+// Scaled for k = 0.01: epsilon = Cmu^0.75 * k^1.5 / L ~ 0.05
+
+dimensions      [0 2 -3 0 0 0 0];
+
+internalField   uniform 0.05;
+
+boundaryField
+{
+    inlet_stator
+    {
+        type            fixedValue;
+        value           uniform 0.05;
+    }
+
+    inlet_rotor
+    {
+        type            fixedValue;
+        value           uniform 0.05;
+    }
+
+    outlet_stator
+    {
+        type            zeroGradient;
+    }
+
+    outlet_rotor
+    {
+        type            zeroGradient;
+    }
+
+    outerWall
+    {
+        type            epsilonWallFunction;
+        value           uniform 0.05;
+    }
+
+    propellerWalls
+    {
+        type            epsilonWallFunction;
+        value           uniform 0.05;
+    }
+
+    statorAMI
+    {
+        type            cyclicAMI;
+        neighbourPatch  rotorAMI;
+        value           $internalField;
+    }
+
+    rotorAMI
+    {
+        type            cyclicAMI;
+        neighbourPatch  statorAMI;
+        value           $internalField;
+    }
+}
+
+// ************************************************************************* //

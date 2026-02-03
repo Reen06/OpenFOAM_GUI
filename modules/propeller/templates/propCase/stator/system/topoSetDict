@@ -1,0 +1,83 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      topoSetDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Create rotor cellZone from cells that were originally in the rotor mesh
+// After mergeMeshes, rotor cells can be identified by the rotorAMI patch faces
+
+actions
+(
+    // First, create a cellSet from cells adjacent to rotorAMI patch
+    {
+        name    rotorCells;
+        type    cellSet;
+        action  new;
+        source  patchToCell;
+        sourceInfo
+        {
+            patch   rotorAMI;
+        }
+    }
+
+    // Also include cells adjacent to propellerWalls (they are definitely rotor cells)
+    {
+        name    rotorCells;
+        type    cellSet;
+        action  add;
+        source  patchToCell;
+        sourceInfo
+        {
+            patch   propellerWalls;
+        }
+    }
+
+    // Also include cells adjacent to inlet_rotor
+    {
+        name    rotorCells;
+        type    cellSet;
+        action  add;
+        source  patchToCell;
+        sourceInfo
+        {
+            patch   inlet_rotor;
+        }
+    }
+
+    // Also include cells adjacent to outlet_rotor
+    {
+        name    rotorCells;
+        type    cellSet;
+        action  add;
+        source  patchToCell;
+        sourceInfo
+        {
+            patch   outlet_rotor;
+        }
+    }
+
+    // Convert cellSet to cellZone for dynamic mesh
+    {
+        name    rotorZone;
+        type    cellZoneSet;
+        action  new;
+        source  setToCellZone;
+        sourceInfo
+        {
+            set     rotorCells;
+        }
+    }
+);
+
+// ************************************************************************* //

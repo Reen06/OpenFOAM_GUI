@@ -1,0 +1,75 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      k;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Turbulent kinetic energy
+// Scaled for U = 1 m/s, I = 5%: k = 1.5 * (1 * 0.05)^2 = 0.00375 ~ 0.01
+
+dimensions      [0 2 -2 0 0 0 0];
+
+internalField   uniform 0.01;
+
+boundaryField
+{
+    inlet_stator
+    {
+        type            fixedValue;
+        value           uniform 0.01;
+    }
+
+    inlet_rotor
+    {
+        type            fixedValue;
+        value           uniform 0.01;
+    }
+
+    outlet_stator
+    {
+        type            zeroGradient;
+    }
+
+    outlet_rotor
+    {
+        type            zeroGradient;
+    }
+
+    outerWall
+    {
+        type            kqRWallFunction;
+        value           uniform 0.01;
+    }
+
+    propellerWalls
+    {
+        type            kqRWallFunction;
+        value           uniform 0.01;
+    }
+
+    statorAMI
+    {
+        type            cyclicAMI;
+        neighbourPatch  rotorAMI;
+        value           $internalField;
+    }
+
+    rotorAMI
+    {
+        type            cyclicAMI;
+        neighbourPatch  statorAMI;
+        value           $internalField;
+    }
+}
+
+// ************************************************************************* //

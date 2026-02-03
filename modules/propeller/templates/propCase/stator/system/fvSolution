@@ -1,0 +1,118 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      fvSolution;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+solvers
+{
+    p
+    {
+        solver          GAMG;
+        tolerance       1e-06;
+        relTol          0.01;
+        smoother        GaussSeidel;
+        nPreSweeps      0;
+        nPostSweeps     2;
+        cacheAgglomeration true;
+        agglomerator    faceAreaPair;
+        nCellsInCoarsestLevel 100;
+        mergeLevels     1;
+    }
+
+    pFinal
+    {
+        $p;
+        relTol          0;
+    }
+
+    pcorr
+    {
+        $p;
+        tolerance       1e-04;
+        relTol          0;
+    }
+
+    pcorrFinal
+    {
+        $pcorr;
+    }
+
+    "(U|k|epsilon)"
+    {
+        solver          PBiCGStab;
+        preconditioner  DILU;
+        tolerance       1e-06;
+        relTol          0.1;
+    }
+
+    "(U|k|epsilon)Final"
+    {
+        $U;
+        relTol          0;
+    }
+}
+
+PIMPLE
+{
+    // Pressure reference for incompressible solver
+    pRefCell        0;
+    pRefValue       0;
+    
+    // Outer corrections - more needed for AMI startup stability
+    nOuterCorrectors    4;
+    
+    // Pressure corrections per outer loop
+    nCorrectors         3;
+    
+    // Non-orthogonal corrections - extra for mesh quality
+    nNonOrthogonalCorrectors 2;
+    
+    // Momentum predictor
+    momentumPredictor   yes;
+    
+    // Under-relaxation for outer loops
+    residualControl
+    {
+        U
+        {
+            tolerance   1e-4;
+            relTol      0;
+        }
+        p
+        {
+            tolerance   1e-3;
+            relTol      0;
+        }
+    }
+}
+
+relaxationFactors
+{
+    fields
+    {
+        p               0.2;  // More conservative for AMI
+        pFinal          0.5;
+    }
+    equations
+    {
+        U               0.5;
+        UFinal          0.9;
+        k               0.5;
+        kFinal          0.9;
+        epsilon         0.5;
+        epsilonFinal    0.9;
+    }
+}
+
+// ************************************************************************* //

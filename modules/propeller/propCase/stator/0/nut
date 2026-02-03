@@ -1,0 +1,74 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      nut;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dimensions      [0 2 -1 0 0 0 0];
+
+internalField   uniform 0;
+
+boundaryField
+{
+    inlet_stator
+    {
+        type            calculated;
+        value           uniform 0;
+    }
+
+    inlet_rotor
+    {
+        type            calculated;
+        value           uniform 0;
+    }
+
+    outlet_stator
+    {
+        type            calculated;
+        value           uniform 0;
+    }
+
+    outlet_rotor
+    {
+        type            calculated;
+        value           uniform 0;
+    }
+
+    outerWall
+    {
+        type            nutkWallFunction;
+        value           uniform 0;
+    }
+
+    propellerWalls
+    {
+        type            nutkWallFunction;
+        value           uniform 0;
+    }
+
+    statorAMI
+    {
+        type            cyclicAMI;
+        neighbourPatch  rotorAMI;
+        value           $internalField;
+    }
+
+    rotorAMI
+    {
+        type            cyclicAMI;
+        neighbourPatch  statorAMI;
+        value           $internalField;
+    }
+}
+
+// ************************************************************************* //

@@ -1,0 +1,14 @@
+{
+    "id": "propeller",
+    "name": "Propeller Simulator",
+    "type": "propeller",
+    "route": "/propeller/",
+    "icon": "🔄",
+    "description": "Rotating machinery simulations with AMI (sliding mesh) interfaces.",
+    "features": [
+        "pimpleFoam",
+        "Rotor/Stator",
+        "AMI Interface"
+    ],
+    "version": "1.0.0"
+}
