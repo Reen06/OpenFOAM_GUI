@@ -1,0 +1,20 @@
+# OpenFOAM Unified GUI - Python Dependencies
+# Install with: pip install --user -r requirements.txt
+
+# Web framework
+fastapi>=0.100.0
+
+# ASGI server
+uvicorn>=0.22.0
+
+# File upload handling
+python-multipart>=0.0.6
+
+# WebSocket support (for live log streaming)
+websockets>=11.0
+
+# Async file operations (used by FastAPI/Starlette for static files)
+aiofiles>=23.0.0
+
+# HTTP client (for inter-service communication)
+httpx>=0.24.0
