@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0",
+  "cases": {
+    "wind_tunnel": {
+      "id": "wind_tunnel",
+      "name": "Wind Tunnel",
+      "category": "module",
+      "type": "windtunnel",
+      "path": "modules/wind_tunnel",
+      "route": "/windtunnel/",
+      "icon": "\ud83c\udf2c\ufe0f",
+      "description": "Static aerodynamic simulations for external flow analysis around objects.",
+      "features": [
+        "simpleFoam / pimpleFoam",
+        "k-omega SST",
+        "Steady / Transient"
+      ],
+      "status": "valid",
+      "error": null,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2026-02-02T10:31:05.765037"
+    },
+    "propeller": {
+      "id": "propeller",
+      "name": "Propeller Simulator",
+      "category": "module",
+      "type": "propeller",
+      "path": "modules/propeller",
+      "route": "/propeller/",
+      "icon": "\ud83d\udd04",
+      "description": "Rotating machinery simulations with AMI (sliding mesh) interfaces.",
+      "features": [
+        "pimpleFoam",
+        "Rotor/Stator",
+        "AMI Interface"
+      ],
+      "status": "valid",
+      "error": null,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2026-02-01T14:22:00Z"
+    }
+  },
+  "order": [
+    "wind_tunnel",
+    "propeller"
+  ]
+}
