@@ -1,0 +1,69 @@
+{
+  "schema_version": "1.0",
+  "cases": {
+    "wind_tunnel": {
+      "id": "wind_tunnel",
+      "name": "Wind Tunnel",
+      "category": "module",
+      "type": "windtunnel",
+      "path": "modules/wind_tunnel",
+      "route": "/windtunnel/",
+      "icon": "\ud83c\udf2c\ufe0f",
+      "description": "Static aerodynamic simulations for external flow analysis around objects.",
+      "features": [
+        "simpleFoam / pimpleFoam",
+        "k-omega SST",
+        "Steady / Transient"
+      ],
+      "status": "valid",
+      "error": null,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2026-02-02T10:31:05.765037"
+    },
+    "propeller": {
+      "id": "propeller",
+      "name": "Propeller Simulator",
+      "category": "module",
+      "type": "propeller",
+      "path": "modules/propeller",
+      "route": "/propeller/",
+      "icon": "\ud83d\udd04",
+      "description": "Rotating machinery simulations with AMI (sliding mesh) interfaces.",
+      "features": [
+        "pimpleFoam",
+        "Rotor/Stator",
+        "AMI Interface"
+      ],
+      "status": "valid",
+      "error": null,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2026-02-01T14:22:00Z"
+    },
+    "blank_template": {
+      "id": "blank_template",
+      "name": "Blank Module Template",
+      "category": "custom",
+      "type": "blank",
+      "path": "modules/blank_template",
+      "route": "/blank_template/",
+      "icon": "BM",
+      "description": "A blank OpenFOAM module template. Copy this module and customize it for your own OpenFOAM case.",
+      "features": [
+        "Run Manager",
+        "Mesh Upload / Library",
+        "Live Log Streaming",
+        "Template-based Case Setup"
+      ],
+      "status": "valid",
+      "error": null,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2026-02-09T21:17:28.081880",
+      "imported_at": "2026-02-09T21:17:15.242841"
+    }
+  },
+  "order": [
+    "wind_tunnel",
+    "propeller",
+    "blank_template"
+  ]
+}

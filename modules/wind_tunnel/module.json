@@ -1,0 +1,52 @@
+{
+  "id": "wind_tunnel",
+  "name": "Wind Tunnel",
+  "type": "windtunnel",
+  "route": "/windtunnel/",
+  "icon": "\ud83c\udf2c\ufe0f",
+  "description": "Static aerodynamic simulations for external flow analysis around objects.",
+  "features": [
+    "simpleFoam / pimpleFoam",
+    "k-omega SST",
+    "Steady / Transient"
+  ],
+  "version": "1.0.0",
+  "updated_at": "2026-02-02T10:31:05.765310",
+  "endpointSchema": {
+    "endpoints": [
+      {
+        "key": "inlet",
+        "label": "Inlet",
+        "type": "patch",
+        "required": true,
+        "multiple": true,
+        "description": "Velocity inlet boundary faces"
+      },
+      {
+        "key": "outlet",
+        "label": "Outlet",
+        "type": "patch",
+        "required": true,
+        "multiple": true,
+        "description": "Pressure outlet boundary faces"
+      },
+      {
+        "key": "walls",
+        "label": "Domain Walls",
+        "type": "patch",
+        "required": false,
+        "multiple": true,
+        "description": "Outer domain walls (slip or noSlip)"
+      },
+      {
+        "key": "geometry",
+        "label": "Geometry Surfaces",
+        "type": "patch",
+        "required": false,
+        "multiple": true,
+        "description": "Object/model surfaces for force analysis"
+      }
+    ],
+    "repeatingGroups": []
+  }
+}

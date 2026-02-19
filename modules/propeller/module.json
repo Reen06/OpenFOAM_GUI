@@ -1,0 +1,143 @@
+{
+    "id": "propeller",
+    "name": "Propeller Simulator",
+    "type": "propeller",
+    "route": "/propeller/",
+    "icon": "\ud83d\udd04",
+    "description": "Rotating machinery simulations with AMI (sliding mesh) interfaces.",
+    "features": [
+        "pimpleFoam",
+        "Rotor/Stator",
+        "AMI Interface"
+    ],
+    "version": "1.0.0",
+    "endpointSchema": {
+        "endpoints": [
+            {
+                "key": "inlet",
+                "label": "Inlet",
+                "type": "patch",
+                "required": true,
+                "multiple": true,
+                "description": "Velocity inlet boundary"
+            },
+            {
+                "key": "outlet",
+                "label": "Outlet",
+                "type": "patch",
+                "required": true,
+                "multiple": true,
+                "description": "Pressure outlet boundary"
+            },
+            {
+                "key": "domainWalls",
+                "label": "Domain Walls",
+                "type": "patch",
+                "required": false,
+                "multiple": true,
+                "description": "Outer domain walls"
+            }
+        ],
+        "repeatingGroups": [
+            {
+                "key": "propellers",
+                "label": "Propeller",
+                "min": 1,
+                "max": 10,
+                "endpoints": [
+                    {
+                        "key": "cellZone",
+                        "label": "Rotating Zone",
+                        "type": "cellZone",
+                        "required": true,
+                        "multiple": false,
+                        "description": "The cellZone defining the rotating region"
+                    },
+                    {
+                        "key": "interfacePatches",
+                        "label": "AMI Interfaces",
+                        "type": "patch",
+                        "required": true,
+                        "multiple": true,
+                        "description": "Stator/rotor AMI interface patches (pair)"
+                    },
+                    {
+                        "key": "geometryPatches",
+                        "label": "Propeller Walls",
+                        "type": "patch",
+                        "required": false,
+                        "multiple": true,
+                        "description": "Propeller blade/hub surfaces for force analysis"
+                    }
+                ],
+                "parameters": [
+                    {
+                        "key": "rpm",
+                        "label": "RPM",
+                        "type": "number",
+                        "default": 300
+                    },
+                    {
+                        "key": "rotationAxis",
+                        "label": "Rotation Axis",
+                        "type": "select",
+                        "options": [
+                            {
+                                "value": "0,0,1",
+                                "label": "Z-axis (0,0,1)"
+                            },
+                            {
+                                "value": "0,1,0",
+                                "label": "Y-axis (0,1,0)"
+                            },
+                            {
+                                "value": "1,0,0",
+                                "label": "X-axis (1,0,0)"
+                            }
+                        ],
+                        "default": "0,0,1"
+                    },
+                    {
+                        "key": "originX",
+                        "label": "Origin X",
+                        "type": "number",
+                        "default": 0
+                    },
+                    {
+                        "key": "originY",
+                        "label": "Origin Y",
+                        "type": "number",
+                        "default": 0
+                    },
+                    {
+                        "key": "originZ",
+                        "label": "Origin Z",
+                        "type": "number",
+                        "default": 0
+                    },
+                    {
+                        "key": "enableRampup",
+                        "label": "Enable RPM Ramp-up",
+                        "type": "checkbox",
+                        "default": true
+                    },
+                    {
+                        "key": "rampDuration",
+                        "label": "Ramp Duration (s)",
+                        "type": "number",
+                        "default": 0.02,
+                        "showWhen": {
+                            "enableRampup": true
+                        }
+                    },
+                    {
+                        "key": "reverseDirection",
+                        "label": "Reverse Direction (CCW)",
+                        "type": "checkbox",
+                        "default": false
+                    }
+                ]
+            }
+        ]
+    }
+}

@@ -1,0 +1,927 @@
+/* OpenFOAM GUI - Landing Page Styles */
+
+:root {
+    --bg-primary: #0a0a14;
+    --bg-secondary: #12121f;
+    --bg-card: #1a1a2e;
+    --bg-card-hover: #252540;
+    --text-primary: #ffffff;
+    --text-secondary: #a0a0b0;
+    --text-muted: #606070;
+    --accent-primary: #00d4ff;
+    --accent-secondary: #7b2cbf;
+    --accent-gradient: linear-gradient(135deg, #00d4ff, #7b2cbf);
+    --border-color: rgba(255, 255, 255, 0.1);
+    --border-radius: 16px;
+    --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    background-image:
+        radial-gradient(circle at 20% 80%, rgba(0, 212, 255, 0.05) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(123, 44, 191, 0.05) 0%, transparent 50%);
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 24px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding-top: 80px;
+}
+
+/* Header */
+.header {
+    text-align: center;
+    margin-bottom: 60px;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.logo-icon {
+    font-size: 48px;
+}
+
+.logo h1 {
+    font-size: 48px;
+    font-weight: 700;
+    background: var(--accent-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.tagline {
+    font-size: 18px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.version {
+    font-size: 14px;
+    color: var(--text-muted);
+    background: var(--bg-secondary);
+    padding: 4px 12px;
+    border-radius: 20px;
+    display: inline-block;
+}
+
+/* Header Actions */
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.view-toggle-btn {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: 18px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.view-toggle-btn:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-color: var(--accent-primary);
+}
+
+
+/* Tools Grid */
+.tools-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 24px;
+    flex: 1;
+}
+
+.tool-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 32px;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.tool-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--accent-gradient);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.tool-card:hover {
+    background: var(--bg-card-hover);
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-card);
+    border-color: rgba(0, 212, 255, 0.3);
+}
+
+.tool-card:hover::before {
+    opacity: 1;
+}
+
+.tool-card.coming-soon {
+    opacity: 0.5;
+    cursor: default;
+    pointer-events: none;
+}
+
+.tool-icon {
+    font-size: 48px;
+}
+
+.tool-info h2 {
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.tool-info p {
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.tool-features {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: auto;
+}
+
+.feature {
+    font-size: 12px;
+    padding: 4px 10px;
+    background: rgba(0, 212, 255, 0.1);
+    border: 1px solid rgba(0, 212, 255, 0.2);
+    border-radius: 20px;
+    color: var(--accent-primary);
+}
+
+.tool-arrow {
+    position: absolute;
+    right: 24px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 32px;
+    color: var(--text-muted);
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.tool-card:hover .tool-arrow {
+    opacity: 1;
+    right: 20px;
+    color: var(--accent-primary);
+}
+
+/* Clickable card cursor */
+.tool-card {
+    cursor: pointer;
+}
+
+.tool-card.invalid-case {
+    cursor: default;
+}
+
+/* List View Mode */
+.tools-grid.list-view {
+    grid-template-columns: 1fr;
+    gap: 12px;
+}
+
+.tools-grid.list-view .tool-card {
+    flex-direction: row;
+    align-items: center;
+    padding: 16px 20px;
+    gap: 20px;
+}
+
+.tools-grid.list-view .tool-icon {
+    font-size: 32px;
+    margin-bottom: 0;
+}
+
+.tools-grid.list-view .tool-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.tools-grid.list-view .tool-info h2 {
+    font-size: 18px;
+    margin-bottom: 2px;
+}
+
+.tools-grid.list-view .tool-info p {
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tools-grid.list-view .tool-features {
+    display: none;
+}
+
+.tools-grid.list-view .case-actions {
+    margin-top: 0;
+    padding-top: 0;
+}
+
+.tools-grid.list-view .drag-handle {
+    position: static;
+    margin-right: 8px;
+}
+
+/* Footer */
+.footer {
+    text-align: center;
+    margin-top: 60px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border-color);
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+/* ============================================================================
+   Case Management Styles
+   ============================================================================ */
+
+/* Loading/Error States */
+.loading-state,
+.error-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px;
+    color: var(--text-secondary);
+    font-size: 16px;
+}
+
+.error-state {
+    color: #ff6b6b;
+}
+
+/* Drag and Drop Styles */
+.tool-card.dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+    border: 2px dashed var(--accent-primary);
+}
+
+.tool-card.drag-over {
+    border: 2px solid var(--accent-primary);
+    box-shadow: 0 0 20px rgba(102, 126, 234, 0.4);
+    transform: scale(1.02);
+}
+
+.drag-handle {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-size: 16px;
+    color: var(--text-muted);
+    cursor: grab;
+    opacity: 0.4;
+    transition: opacity 0.2s;
+    user-select: none;
+    letter-spacing: -2px;
+}
+
+.tool-card:hover .drag-handle {
+    opacity: 1;
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+/* Hide drag handle on management card */
+.edit-cases-card .drag-handle {
+    display: none;
+}
+
+/* Case Actions */
+.case-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 16px;
+}
+
+.action-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.action-btn.primary {
+    background: var(--accent-gradient);
+    color: white;
+    flex: 1;
+    justify-content: center;
+}
+
+.action-btn.secondary {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.action-btn.danger {
+    background: rgba(255, 75, 75, 0.15);
+    color: #ff6b6b;
+    border: 1px solid rgba(255, 75, 75, 0.3);
+}
+
+.action-btn.warning {
+    background: rgba(255, 170, 0, 0.15);
+    color: #ffaa00;
+    border: 1px solid rgba(255, 170, 0, 0.3);
+    flex: 1;
+    justify-content: center;
+}
+
+.action-btn:hover {
+    filter: brightness(1.2);
+    transform: translateY(-1px);
+}
+
+/* Invalid Case Styling */
+.tool-card.invalid-case {
+    border-color: rgba(255, 100, 100, 0.4);
+    opacity: 0.85;
+}
+
+.tool-card.invalid-case::before {
+    background: linear-gradient(135deg, #ff4444, #cc0000);
+    opacity: 1;
+}
+
+.broken-badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: rgba(255, 75, 75, 0.2);
+    color: #ff6b6b;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* Edit Cases Card */
+.tool-card.edit-cases-card {
+    border-style: dashed;
+    border-color: rgba(0, 212, 255, 0.3);
+    background: rgba(0, 212, 255, 0.03);
+}
+
+.tool-card.edit-cases-card:hover {
+    border-color: var(--accent-primary);
+    background: rgba(0, 212, 255, 0.08);
+}
+
+/* ============================================================================
+   Modal Styles
+   ============================================================================ */
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    backdrop-filter: blur(4px);
+}
+
+.modal-content {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    width: 90%;
+    max-width: 500px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.modal-content.modal-small {
+    max-width: 400px;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 24px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.modal-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+
+.modal-body {
+    padding: 24px;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+    justify-content: flex-end;
+}
+
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-primary {
+    background: var(--accent-gradient);
+    color: white;
+}
+
+.btn-secondary {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #ff4444, #cc0000);
+    color: white;
+}
+
+.btn:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Upload Zone */
+.upload-zone {
+    border: 2px dashed var(--border-color);
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.upload-zone:hover,
+.upload-zone.drag-over {
+    border-color: var(--accent-primary);
+    background: rgba(0, 212, 255, 0.05);
+}
+
+.upload-zone .upload-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+
+.upload-zone p {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.upload-status {
+    margin-top: 16px;
+    text-align: center;
+}
+
+.status-loading,
+.status-success,
+.status-error {
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.status-loading {
+    background: rgba(0, 212, 255, 0.1);
+    color: var(--accent-primary);
+}
+
+.status-success {
+    background: rgba(0, 255, 136, 0.1);
+    color: #00ff88;
+}
+
+.status-error {
+    background: rgba(255, 75, 75, 0.1);
+    color: #ff6b6b;
+}
+
+/* Error Details */
+.error-details {
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.error-details p {
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.error-details pre {
+    background: #0a0a14;
+    padding: 12px;
+    border-radius: 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    color: #ff6b6b;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+/* Form Styles */
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.form-input {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-family: inherit;
+    transition: all 0.2s ease;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+}
+
+.form-input::placeholder {
+    color: var(--text-muted);
+}
+
+textarea.form-input {
+    resize: vertical;
+    min-height: 80px;
+}
+
+/* Checkbox Styles for Export Modal */
+.export-description {
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+}
+
+.checkbox-group {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 12px;
+    transition: all 0.2s ease;
+}
+
+.checkbox-group:hover {
+    border-color: var(--accent-primary);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    cursor: pointer;
+    accent-color: var(--accent-primary);
+}
+
+.checkbox-text {
+    font-weight: 500;
+    color: var(--text-primary);
+    display: block;
+}
+
+.checkbox-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    display: block;
+    margin-top: 2px;
+}
+
+
+/* Responsive */
+@media (max-width: 768px) {
+    .logo h1 {
+        font-size: 32px;
+    }
+
+    .logo-icon {
+        font-size: 36px;
+    }
+
+    .tools-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ============================================================================
+   Simulations Container - Multiple Running Sims
+   ============================================================================ */
+
+.simulations-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.simulations-container:empty {
+    display: none;
+}
+
+/* Individual Simulation Card */
+.sim-card {
+    background: linear-gradient(135deg, #1a1a2e 0%, #0f0f1a 100%);
+    border-bottom: 1px solid var(--accent-primary);
+    transition: all 0.3s ease;
+}
+
+.sim-card.propeller {
+    border-bottom-color: #ff9900;
+}
+
+.sim-card.windtunnel {
+    border-bottom-color: #00d4ff;
+}
+
+.sim-card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 24px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.sim-card-header:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.collapse-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.collapse-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+
+.sim-type {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.sim-name {
+    font-size: 13px;
+    color: var(--text-secondary);
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sim-indicator {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-weight: 500;
+    background: rgba(0, 255, 136, 0.15);
+    color: #00ff88;
+    animation: pulse 2s infinite;
+}
+
+.sim-progress {
+    font-size: 12px;
+    padding: 3px 10px;
+    background: rgba(0, 212, 255, 0.15);
+    color: var(--accent-primary);
+    border-radius: 20px;
+    font-weight: 500;
+}
+
+.sim-eta {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-left: auto;
+}
+
+.sim-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: 12px;
+}
+
+.sim-view-btn,
+.sim-stop-btn {
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.sim-view-btn {
+    background: linear-gradient(135deg, #00d4ff 0%, #0088aa 100%);
+    color: white;
+}
+
+.sim-stop-btn {
+    background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
+    color: white;
+}
+
+.sim-view-btn:hover,
+.sim-stop-btn:hover {
+    filter: brightness(1.2);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.sim-stop-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Collapsible Content */
+.sim-card-body {
+    padding: 0 24px 10px 24px;
+    display: block;
+    transition: all 0.3s ease;
+}
+
+.sim-card.collapsed .sim-card-body {
+    display: none;
+}
+
+.sim-logs {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 6px;
+    padding: 8px 12px;
+    max-height: 50px;
+    overflow-y: auto;
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+}
+
+.log-line {
+    color: #00ff00;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.6;
+    }
+}
+
+/* Ready Bar */
+.ready-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, #1a2e1a 0%, #0f1a0f 100%);
+    border-bottom: 2px solid #00ff88;
+    padding: 10px 24px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.ready-icon {
+    font-size: 18px;
+}
+
+.ready-text {
+    font-size: 14px;
+    color: #00ff88;
+    font-weight: 500;
+}

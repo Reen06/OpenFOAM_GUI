@@ -1,0 +1,202 @@
+#!/bin/bash
+#------------------------------------------------------------------------------
+# Allrun script for OpenFOAM Propeller AMI Simulation
+# 
+# This script performs the complete simulation pipeline:
+# 1. Import UNV meshes for rotor and stator
+# 2. Merge meshes into stator case
+# 3. Convert patches to cyclicAMI
+# 4. Run checkMesh
+# 5. Run pimpleFoam solver
+#
+# Run from: propCase/ directory
+# Usage: ./Allrun [serial|parallel]
+#------------------------------------------------------------------------------
+
+# Exit on error
+set -e
+
+# Source OpenFOAM environment
+. /usr/lib/openfoam/openfoam2506/etc/bashrc
+
+# Get the case directory (where this script is located)
+CASE_DIR=$(cd "$(dirname "$0")" && pwd)
+cd "$CASE_DIR"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+echo -e "${GREEN}========================================${NC}"
+echo -e "${GREEN}OpenFOAM Propeller AMI Simulation${NC}"
+echo -e "${GREEN}========================================${NC}"
+
+# Default to serial run
+RUN_MODE=${1:-serial}
+
+#------------------------------------------------------------------------------
+# Step 1: Import rotor mesh
+#------------------------------------------------------------------------------
+echo -e "\n${YELLOW}Step 1: Importing rotor mesh...${NC}"
+cd "$CASE_DIR/rotor"
+
+# The UNV files are in the parent directory of propCase
+if [ -f "../../rotor_mesh.unv" ]; then
+    ideasUnvToFoam ../../rotor_mesh.unv
+    echo -e "${GREEN}✓ Rotor mesh imported${NC}"
+elif [ -f "../../rotor.unv" ]; then
+    ideasUnvToFoam ../../rotor.unv
+    echo -e "${GREEN}✓ Rotor mesh imported${NC}"
+else
+    echo -e "${RED}✗ ERROR: rotor mesh file not found (rotor_mesh.unv or rotor.unv)${NC}"
+    exit 1
+fi
+
+#------------------------------------------------------------------------------
+# Step 2: Import stator mesh
+#------------------------------------------------------------------------------
+echo -e "\n${YELLOW}Step 2: Importing stator mesh...${NC}"
+cd "$CASE_DIR/stator"
+
+if [ -f "../../stator_mesh.unv" ]; then
+    ideasUnvToFoam ../../stator_mesh.unv
+    echo -e "${GREEN}✓ Stator mesh imported${NC}"
+elif [ -f "../../stator.unv" ]; then
+    ideasUnvToFoam ../../stator.unv
+    echo -e "${GREEN}✓ Stator mesh imported${NC}"
+else
+    echo -e "${RED}✗ ERROR: stator mesh file not found (stator_mesh.unv or stator.unv)${NC}"
+    exit 1
+fi
+
+#------------------------------------------------------------------------------
+# Step 3: Merge meshes
+#------------------------------------------------------------------------------
+echo -e "\n${YELLOW}Step 3: Merging meshes...${NC}"
+cd "$CASE_DIR"
+
+mergeMeshes -overwrite stator rotor
+echo -e "${GREEN}✓ Meshes merged${NC}"
+
+#------------------------------------------------------------------------------
+# Step 4: Convert AMI patches (edit boundary file)
+#------------------------------------------------------------------------------
+echo -e "\n${YELLOW}Step 4: Configuring cyclicAMI patches...${NC}"
+cd "$CASE_DIR/stator"
+
+BOUNDARY_FILE="constant/polyMesh/boundary"
+
+if [ ! -f "$BOUNDARY_FILE" ]; then
+    echo -e "${RED}✗ ERROR: boundary file not found${NC}"
+    exit 1
+fi
+
+# Backup original boundary file
+cp "$BOUNDARY_FILE" "${BOUNDARY_FILE}.orig"
+
+# Use sed to modify the boundary file
+# Convert statorAMI and rotorAMI to cyclicAMI and add neighbourPatch
+python3 << 'PYTHON_SCRIPT'
+import re
+
+boundary_file = "constant/polyMesh/boundary"
+
+with open(boundary_file, 'r') as f:
+    content = f.read()
+
+# Function to update a patch block
+def update_patch(content, patch_name, new_type, neighbour_patch=None, wall=False):
+    # Pattern to find the patch block
+    pattern = rf'({patch_name}\s*\{{\s*type\s+)\w+(;)'
+    replacement = rf'\g<1>{new_type}\g<2>'
+    content = re.sub(pattern, replacement, content)
+    
+    # Add neighbourPatch for AMI patches
+    if neighbour_patch:
+        # Check if neighbourPatch already exists
+        check_pattern = rf'{patch_name}\s*\{{[^}}]*neighbourPatch'
+        if not re.search(check_pattern, content):
+            # Add neighbourPatch after type line
+            pattern = rf'({patch_name}\s*\{{\s*type\s+\w+;)'
+            replacement = rf'\g<1>\n        neighbourPatch  {neighbour_patch};'
+            content = re.sub(pattern, replacement, content)
+    
+    return content
+
+# Update patches
+content = update_patch(content, 'statorAMI', 'cyclicAMI', 'rotorAMI')
+content = update_patch(content, 'rotorAMI', 'cyclicAMI', 'statorAMI')
+content = update_patch(content, 'outerWall', 'wall')
+content = update_patch(content, 'propellerWalls', 'wall')
+
+with open(boundary_file, 'w') as f:
+    f.write(content)
+
+print("Boundary file updated")
+PYTHON_SCRIPT
+
+echo -e "${GREEN}✓ AMI patches configured${NC}"
+
+#------------------------------------------------------------------------------
+# Step 5: Check mesh
+#------------------------------------------------------------------------------
+echo -e "\n${YELLOW}Step 5: Checking mesh quality...${NC}"
+cd "$CASE_DIR/stator"
+
+checkMesh -allGeometry -allTopology > log.checkMesh 2>&1
+
+# Check for mesh errors (exclude expected AMI region warning)
+if grep -q "FOAM FATAL ERROR" log.checkMesh; then
+    echo -e "${RED}✗ Mesh check found fatal errors! See log.checkMesh${NC}"
+    tail -20 log.checkMesh
+    exit 1
+else
+    echo -e "${GREEN}✓ Mesh check completed${NC}"
+    echo "   Cells: $(grep 'cells:' log.checkMesh | head -1)"
+    grep "rotorCells" log.checkMesh | head -1 || true
+fi
+
+#------------------------------------------------------------------------------
+# Step 6: Run solver
+#------------------------------------------------------------------------------
+echo -e "\n${YELLOW}Step 6: Running pimpleFoam...${NC}"
+cd "$CASE_DIR/stator"
+
+if [ "$RUN_MODE" == "parallel" ]; then
+    echo "Decomposing mesh for parallel run..."
+    decomposePar -force > log.decomposePar 2>&1
+    
+    NPROCS=$(grep numberOfSubdomains system/decomposeParDict | grep -oE '[0-9]+')
+    echo "Running on $NPROCS processors..."
+    
+    mpirun -np $NPROCS pimpleFoam -parallel > log.pimpleFoam 2>&1 &
+    SOLVER_PID=$!
+    
+    echo "Solver running in background (PID: $SOLVER_PID)"
+    echo "Monitor with: tail -f $CASE_DIR/stator/log.pimpleFoam"
+else
+    echo "Running serial..."
+    pimpleFoam > log.pimpleFoam 2>&1 &
+    SOLVER_PID=$!
+    
+    echo "Solver running in background (PID: $SOLVER_PID)"
+    echo "Monitor with: tail -f $CASE_DIR/stator/log.pimpleFoam"
+fi
+
+echo -e "\n${GREEN}========================================${NC}"
+echo -e "${GREEN}Simulation started successfully!${NC}"
+echo -e "${GREEN}========================================${NC}"
+echo ""
+echo "Case directory: $CASE_DIR/stator"
+echo "Solver log: $CASE_DIR/stator/log.pimpleFoam"
+echo ""
+echo "Commands:"
+echo "  Monitor: tail -f $CASE_DIR/stator/log.pimpleFoam"
+echo "  Stop:    kill $SOLVER_PID"
+echo "  Status:  ps -p $SOLVER_PID"
+
+#------------------------------------------------------------------------------
+# End
+#------------------------------------------------------------------------------

@@ -1,0 +1,112 @@
+# ============================================
+# OpenFOAM GUI - Git Ignore Configuration
+# ============================================
+
+# -----------------------------------------
+# Simulation Runs (large files, user data)
+# -----------------------------------------
+**/runs/
+runs/
+modules/*/runs/
+modules/propeller/runs/
+modules/wind_tunnel/runs/
+
+# -----------------------------------------
+# Mesh Files (uploaded by user)
+# -----------------------------------------
+**/meshes/
+meshes/
+modules/*/meshes/
+modules/propeller/meshes/
+modules/wind_tunnel/meshes/
+*.unv
+*.msh
+
+# -----------------------------------------
+# Log Files (generated during runs)
+# -----------------------------------------
+**/logs/
+logs/
+modules/*/logs/
+*.log
+
+# -----------------------------------------
+# Metadata (run state, can be regenerated)
+# -----------------------------------------
+**/metadata/
+metadata/
+modules/*/metadata/
+
+# -----------------------------------------
+# Import Staging (temporary files)
+# -----------------------------------------
+cases/.import_staging/
+
+# -----------------------------------------
+# Python Cache
+# -----------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# -----------------------------------------
+# Virtual Environment
+# -----------------------------------------
+venv/
+ENV/
+env/
+.venv/
+
+# -----------------------------------------
+# IDE / Editor
+# -----------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# -----------------------------------------
+# OS Generated
+# -----------------------------------------
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# -----------------------------------------
+# OpenFOAM Generated Files (if any leak)
+# -----------------------------------------
+**/constant/polyMesh/
+**/processor*/
+*.foam
+*.zip
+
+# -----------------------------------------
+# Legacy paths (if still present)
+# -----------------------------------------
+PropellerGUI/runs/
+PropellerGUI/meshes/
+PropellerGUI/logs/
+PropellerGUI/metadata/
+WindTunnelGUI/runs/
+WindTunnelGUI/meshes/
+WindTunnelGUI/logs/
+WindTunnelGUI/metadata/

@@ -1,0 +1,7 @@
+{
+    "end_time": 1000,
+    "delta_t": 1,
+    "write_interval": 100,
+    "parallel": false,
+    "num_cores": 4
+}

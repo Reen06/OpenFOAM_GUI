@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenFOAM Blank Module Template</title>
+    <link rel="stylesheet" href="static/css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <a href="/" class="home-link" title="Back to OpenFOAM GUI Home"
+                    style="text-decoration: none; display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 24px;">&#x1F3E0;</span>
+                    <h1 style="margin: 0;">OpenFOAM Module Template</h1>
+                </a>
+                <span class="version">v1.0 | ESI OpenFOAM v2506</span>
+            </div>
+            <div class="header-right">
+                <div class="status-indicator" id="connection-status">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Ready</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Sidebar Tabs -->
+            <nav class="sidebar">
+                <button class="tab-btn active" data-tab="run-manager">
+                    <span class="tab-icon">&#x25B6;&#xFE0F;</span>
+                    <span class="tab-label">Run Manager</span>
+                </button>
+                <button class="tab-btn" data-tab="mesh-manager">
+                    <span class="tab-icon">&#x1F4E6;</span>
+                    <span class="tab-label">Mesh Library</span>
+                </button>
+                <button class="tab-btn" data-tab="boundary-mapper">
+                    <span class="tab-icon">&#x1F5FA;</span>
+                    <span class="tab-label">Boundary Mapper</span>
+                </button>
+                <button class="tab-btn" data-tab="solver">
+                    <span class="tab-icon">&#x2699;&#xFE0F;</span>
+                    <span class="tab-label">Settings</span>
+                </button>
+                <button class="tab-btn" data-tab="logs">
+                    <span class="tab-icon">&#x1F4DC;</span>
+                    <span class="tab-label">Logs</span>
+                </button>
+            </nav>
+
+            <!-- Tab Content -->
+            <div class="content-area">
+                <!-- Run Manager Tab (Default) -->
+                <section id="run-manager" class="tab-panel active">
+                    <h2>Run Manager</h2>
+                    <p class="section-desc">Create and manage simulation runs</p>
+
+                    <!-- Create New Run -->
+                    <div class="card">
+                        <h4>Create New Run</h4>
+                        <div class="form-row" style="align-items: flex-end;">
+                            <div class="form-group" style="flex: 2;">
+                                <label>Select Mesh from Library *</label>
+                                <select id="mesh-selector">
+                                    <option value="">-- Select a mesh --</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label>Run Name (optional)</label>
+                                <input type="text" id="new-run-name" placeholder="Auto-generated">
+                            </div>
+                            <button class="btn btn-success" id="create-run-btn" disabled>
+                                Create Run
+                            </button>
+                        </div>
+
+                        <!-- New Mesh Upload Section -->
+                        <div id="new-mesh-upload-section"
+                            style="display: none; margin-top: 16px; padding: 16px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                            <h5 style="margin-top: 0; margin-bottom: 16px;">Upload New Mesh File</h5>
+                            <div class="upload-container">
+                                <div class="upload-box" id="mesh-upload-box">
+                                    <div class="upload-icon">&#x1F4C1;</div>
+                                    <h3>Mesh File</h3>
+                                    <p>Drag & drop or click to select .unv or .msh file</p>
+                                    <input type="file" id="mesh-file-input" accept=".unv,.msh" hidden>
+                                    <div class="upload-status" id="mesh-upload-status"></div>
+                                </div>
+                            </div>
+                            <p
+                                style="color: var(--text-muted); font-size: 0.9em; margin: 12px 0 0 0; text-align: center;">
+                                Mesh will be processed when you click "Create Run"
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Runs List -->
+                    <div class="card">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h4 style="margin: 0;">Existing Runs</h4>
+                            <button class="btn btn-secondary btn-sm" id="refresh-runs-btn">Refresh</button>
+                        </div>
+                        <div class="runs-list" id="runs-list">
+                            <p class="empty-state">No runs yet. Select a mesh and create a run.</p>
+                        </div>
+                    </div>
+
+                    <!-- Run Details Panel -->
+                    <div class="card" id="run-details-panel" style="display: none;">
+                        <h4>Run Details</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <p><strong>Name:</strong> <span id="run-detail-name"></span></p>
+                            <p><strong>Status:</strong> <span id="run-detail-status"></span></p>
+                            <p><strong>Mesh:</strong> <span id="run-detail-mesh"></span></p>
+                            <p><strong>Created:</strong> <span id="run-detail-created"></span></p>
+                        </div>
+                        <div style="margin-top: 12px;">
+                            <p><strong>ParaView Path:</strong></p>
+                            <code id="run-detail-pv-path"
+                                style="display: block; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 4px; word-break: break-all;"></code>
+                        </div>
+                        <div class="action-bar" style="margin-top: 16px;">
+                            <button class="btn btn-primary" id="go-to-solver-btn">Configure & Run</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Mesh Library Tab -->
+                <section id="mesh-manager" class="tab-panel">
+                    <h2>Mesh Library</h2>
+                    <p class="section-desc">View and manage saved meshes</p>
+
+                    <div class="card">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h4 style="margin: 0;">&#x1F4DA; Saved Meshes</h4>
+                            <button class="btn btn-secondary btn-sm" onclick="app.loadMeshLibrary()">Refresh</button>
+                        </div>
+                        <div id="mesh-library-list" class="library-list">
+                            <div class="empty-state">No saved meshes. Use Run Manager to create runs with new meshes.
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Boundary Mapper Tab -->
+                <!--
+                     This tab loads the shared BoundaryMapper widget.
+                     It auto-fetches the endpoint schema from your module.json,
+                     discovers patches from the mesh, and lets users map them.
+
+                     To use in your own module:
+                     1. Define endpointSchema in your module.json
+                     2. Add the API endpoints (see blank_template/backend/main.py)
+                     3. Copy this tab panel and the initBoundaryMapper() JS below
+                -->
+                <section id="boundary-mapper" class="tab-panel">
+                    <h2>Boundary Mapper</h2>
+                    <p class="section-desc">Map mesh patches to simulation endpoints</p>
+
+                    <!-- Dynamic mapper widget renders here -->
+                    <div id="boundary-mapper-container">
+                        <div class="card">
+                            <p class="empty-state">Select a run from the Run Manager to configure boundary mapping.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Settings Tab -->
+                <!--
+                     TODO: Add your case-specific settings here.
+                     
+                     This is where you define the UI for your solver settings,
+                     boundary conditions, material properties, etc.
+                     
+                     See BLANK_MODULE_GUIDE.md for examples.
+                -->
+                <section id="solver" class="tab-panel">
+                    <h2>Case Settings</h2>
+                    <p class="section-desc">Configure simulation parameters</p>
+
+                    <div class="card">
+                        <h4>Time Controls</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>End Time / Iterations</label>
+                                <input type="number" id="end-time" value="1000" step="10">
+                            </div>
+                            <div class="form-group">
+                                <label>Delta T</label>
+                                <input type="number" id="delta-t" value="1" step="0.001">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Write Interval</label>
+                                <input type="number" id="write-interval" value="100" step="10">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h4>Parallel Execution</h4>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="enable-parallel">
+                                Enable Parallel Run
+                            </label>
+                        </div>
+                        <div class="parallel-inputs" id="parallel-inputs" style="display: none;">
+                            <div class="form-group">
+                                <label>Number of Cores</label>
+                                <input type="number" id="num-cores" value="4" min="2" max="64">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="action-bar">
+                        <button class="btn btn-success" id="run-simulation-btn" disabled>
+                            Run Simulation
+                        </button>
+                        <button class="btn btn-danger" id="stop-simulation-btn" disabled>
+                            Stop
+                        </button>
+                    </div>
+
+                    <div class="progress-container" id="progress-container" style="display: none;">
+                        <div class="progress-header">
+                            <span id="progress-step">Initializing...</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                        </div>
+                        <div class="progress-stats">
+                            <span id="progress-time">Time: 0m 0s</span>
+                            <span id="progress-iter">SimTime: 0</span>
+                            <span id="progress-eta">ETA: --</span>
+                        </div>
+                        <div class="storage-stats">
+                            <span>&#x1F4BE; <span id="current-storage">0 MB</span></span>
+                            <span id="est-size-container" style="display: none;">&#x1F4C8; Est: <span
+                                    id="estimated-total-size">-- MB</span></span>
+                        </div>
+                    </div>
+
+                    <!-- Mini Log Viewer -->
+                    <div class="card" id="mini-log-container" style="margin-top: 16px;">
+                        <h4>Live Output</h4>
+                        <div id="mini-log"
+                            style="background: #0a0a14; border-radius: 8px; padding: 12px; font-family: 'Courier New', monospace; font-size: 0.75rem; color: #00ff00; height: 120px; overflow-y: auto;">
+                            <div style="color: var(--text-muted);">Waiting for simulation output...</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Logs Tab -->
+                <section id="logs" class="tab-panel">
+                    <h2>Simulation Logs</h2>
+                    <p class="section-desc">Live output from OpenFOAM solver</p>
+
+                    <div class="log-container">
+                        <div class="log-header">
+                            <span>Live Output</span>
+                            <div>
+                                <button class="btn btn-secondary btn-sm" id="clear-logs-btn">Clear</button>
+                                <button class="btn btn-secondary btn-sm" id="scroll-bottom-btn">Scroll to
+                                    Bottom</button>
+                            </div>
+                        </div>
+                        <div class="log-output" id="log-output">
+                            <div style="color: var(--text-muted); padding: 20px; text-align: center;">
+                                Waiting for simulation output...
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script src="/shared/boundary_mapper.js"></script>
+    <script src="static/js/websocket.js"></script>
+    <script src="static/js/api.js"></script>
+    <script src="static/js/app.js"></script>
+</body>
+
+</html>

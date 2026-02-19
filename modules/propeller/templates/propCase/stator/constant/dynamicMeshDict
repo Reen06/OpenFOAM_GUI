@@ -1,0 +1,43 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      dynamicMeshDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Dynamic mesh for rotating propeller zone
+// Using solidBody motion for rigid rotation of the rotor zone
+
+dynamicFvMesh   dynamicMotionSolverFvMesh;
+
+motionSolverLibs (fvMotionSolvers);
+
+motionSolver    solidBody;
+
+solidBodyMotionFunction rotatingMotion;
+
+cellZone        rotorCells;
+
+rotatingMotionCoeffs
+{
+    // Rotation axis origin
+    origin      (0 0 0);
+    
+    // Rotation axis direction (Z-axis)
+    axis        (0 0 1);
+    
+    // Angular velocity in rad/s
+    // 1500 RPM = 1500 * 2*pi/60 = 157.08 rad/s
+    omega       157.08;
+}
+
+// ************************************************************************* //

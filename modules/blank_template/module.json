@@ -1,0 +1,44 @@
+{
+  "id": "blank_template",
+  "name": "Blank Module Template",
+  "type": "blank",
+  "route": "/blank_template/",
+  "icon": "BM",
+  "description": "A blank OpenFOAM module template. Copy this module and customize it for your own OpenFOAM case. See BLANK_MODULE_GUIDE.md for instructions.",
+  "features": [
+    "Run Manager",
+    "Mesh Upload / Library",
+    "Live Log Streaming",
+    "Template-based Case Setup"
+  ],
+  "version": "1.0.0",
+  "endpointSchema": {
+    "endpoints": [
+      {
+        "key": "inlet",
+        "label": "Inlet",
+        "type": "patch",
+        "required": true,
+        "multiple": true,
+        "description": "Inlet boundary faces"
+      },
+      {
+        "key": "outlet",
+        "label": "Outlet",
+        "type": "patch",
+        "required": true,
+        "multiple": true,
+        "description": "Outlet boundary faces"
+      },
+      {
+        "key": "walls",
+        "label": "Walls",
+        "type": "patch",
+        "required": false,
+        "multiple": true,
+        "description": "Wall boundary faces"
+      }
+    ],
+    "repeatingGroups": []
+  }
+}

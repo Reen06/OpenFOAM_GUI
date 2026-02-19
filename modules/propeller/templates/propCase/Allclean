@@ -1,0 +1,72 @@
+#!/bin/bash
+#------------------------------------------------------------------------------
+# Allclean script for OpenFOAM Propeller AMI Simulation
+#
+# This script cleans all generated files and resets the case to initial state.
+#
+# Run from: propCase/ directory
+# Usage: ./Allclean
+#------------------------------------------------------------------------------
+
+# Source OpenFOAM environment
+. /usr/lib/openfoam/openfoam2506/etc/bashrc 2>/dev/null || true
+
+# Get the case directory
+CASE_DIR=$(cd "$(dirname "$0")" && pwd)
+cd "$CASE_DIR"
+
+echo "Cleaning propCase..."
+
+#------------------------------------------------------------------------------
+# Clean rotor sub-case
+#------------------------------------------------------------------------------
+echo "  Cleaning rotor/"
+cd "$CASE_DIR/rotor"
+
+# Remove mesh
+rm -rf constant/polyMesh
+
+# Remove time directories (except 0)
+foamListTimes -rm 2>/dev/null || find . -maxdepth 1 -type d -regex '.*/[0-9]+\.?[0-9]*' ! -name '0' -exec rm -rf {} + 2>/dev/null
+
+# Remove logs
+rm -f log.*
+
+#------------------------------------------------------------------------------
+# Clean stator sub-case
+#------------------------------------------------------------------------------
+echo "  Cleaning stator/"
+cd "$CASE_DIR/stator"
+
+# Remove mesh
+rm -rf constant/polyMesh
+
+# Remove time directories (except 0)
+foamListTimes -rm 2>/dev/null || find . -maxdepth 1 -type d -regex '.*/[0-9]+\.?[0-9]*' ! -name '0' -exec rm -rf {} + 2>/dev/null
+
+# Remove processor directories (parallel runs)
+rm -rf processor*
+
+# Remove logs
+rm -f log.*
+
+# Remove sets
+rm -rf constant/polyMesh/sets
+
+# Remove cellZone files
+rm -rf constant/polyMesh/cellZones
+
+# Remove .foam files
+rm -f *.foam
+
+# Remove postProcessing
+rm -rf postProcessing
+
+#------------------------------------------------------------------------------
+# Done
+#------------------------------------------------------------------------------
+cd "$CASE_DIR"
+echo "Done."
+echo ""
+echo "Case reset to initial state."
+echo "Run ./Allrun to start simulation again."
