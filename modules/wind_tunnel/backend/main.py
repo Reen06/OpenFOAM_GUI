@@ -679,6 +679,13 @@ async def create_polymesh(run_id: str):
                     polymesh_path=polymesh_path if polymesh_path.exists() else None
                 )
                 await log_callback(f"[MESH] Saved to mesh library: {mesh_name} (ID: {saved_mesh_id})")
+                
+                # Link the mesh_id back to the run so BoundaryMapper shows "Set Default"
+                run_manager.update_run_metadata(run_id, {
+                    "mesh_id": saved_mesh_id,
+                    "mesh_name": mesh_name
+                })
+                await log_callback(f"[MESH] Linked run {run_id} to mesh {saved_mesh_id}")
             else:
                 await log_callback("[MESH] Warning: No mesh file found to save to library")
         except Exception as e:
@@ -741,6 +748,29 @@ async def stop_run(run_id: str):
         return {"status": "stopped", "success": True}
     except Exception as e:
         return {"status": "error", "success": False, "error": str(e)}
+
+@app.patch("/api/run/{run_id}/mesh-link")
+async def update_run_mesh_link(run_id: str, body: dict):
+    """Update the mesh_id and mesh_name on a run's metadata.
+    
+    Used after creating a run with a temp mesh ID and then saving the mesh
+    to the library — ensures the run references the real library mesh.
+    """
+    mesh_id = body.get("mesh_id")
+    mesh_name = body.get("mesh_name")
+    if not mesh_id:
+        raise HTTPException(status_code=400, detail="mesh_id is required")
+    
+    updates = {"mesh_id": mesh_id}
+    if mesh_name:
+        updates["mesh_name"] = mesh_name
+    
+    success = run_manager.update_run_metadata(run_id, updates)
+    if not success:
+        raise HTTPException(status_code=404, detail="Run not found")
+    
+    return {"success": True, "message": f"Run {run_id} linked to mesh {mesh_id}"}
+
 
 @app.delete("/api/run/{run_id}")
 async def delete_run(run_id: str):

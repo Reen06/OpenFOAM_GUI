@@ -230,6 +230,14 @@ class RunManager:
         if run_id in self.metadata:
             self.metadata[run_id]["status"] = status
             self._save_metadata()
+
+    def update_run_metadata(self, run_id: str, updates: Dict) -> bool:
+        """Update arbitrary metadata fields on a run."""
+        if run_id not in self.metadata:
+            return False
+        self.metadata[run_id].update(updates)
+        self._save_metadata()
+        return True
     
     def update_solver_config(self, run_id: str, solver_config: Dict):
         """Update solver configuration for a run."""
