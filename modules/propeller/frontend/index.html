@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OpenFOAM Web Propeller GUI</title>
     <link rel="stylesheet" href="static/css/styles.css">
+    <link rel="stylesheet" href="/shared/timestep_schedule.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 
@@ -199,9 +200,7 @@
                                         title="Set as default">⭐</button></label>
                                 <select id="solver-select">
                                     <option value="pimpleFoam">pimpleFoam (transient, incompressible)</option>
-                                    <option value="simpleFoam">simpleFoam (steady, incompressible)</option>
                                     <option value="rhoPimpleFoam">rhoPimpleFoam (transient, compressible)</option>
-                                    <option value="rhoSimpleFoam">rhoSimpleFoam (steady, compressible)</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -209,9 +208,25 @@
                                     <button class="default-btn" data-field="turbulence-model"
                                         title="Set as default">⭐</button></label>
                                 <select id="turbulence-model">
-                                    <option value="kOmegaSST">k-omega SST</option>
-                                    <option value="kEpsilon">k-epsilon</option>
-                                    <option value="laminar">Laminar (no turbulence)</option>
+                                    <optgroup label="RANS Models">
+                                        <option value="kOmegaSST">k-ω SST (recommended)</option>
+                                        <option value="kEpsilon">k-ε Standard</option>
+                                        <option value="RNGkEpsilon">k-ε RNG</option>
+                                        <option value="realizableKE">k-ε Realizable</option>
+                                        <option value="SpalartAllmaras">Spalart-Allmaras</option>
+                                    </optgroup>
+                                    <optgroup label="LES / DES (Aeroacoustics)">
+                                        <option value="kOmegaSSTDDES">k-ω SST DDES (recommended for noise)</option>
+                                        <option value="kOmegaSSTDES">k-ω SST DES</option>
+                                        <option value="SpalartAllmarasDDES">SA DDES</option>
+                                        <option value="SpalartAllmarasDES">SA DES</option>
+                                        <option value="WALE">WALE (pure LES)</option>
+                                        <option value="Smagorinsky">Smagorinsky (pure LES)</option>
+                                        <option value="dynamicKEqn">Dynamic k-eqn (pure LES)</option>
+                                    </optgroup>
+                                    <optgroup label="Other">
+                                        <option value="laminar">Laminar (no turbulence)</option>
+                                    </optgroup>
                                 </select>
                             </div>
                         </div>
@@ -230,9 +245,10 @@
                                 <label>Timestep Mode <button type="button" class="info-btn"
                                         data-info="timestep-mode">?</button> <button class="default-btn"
                                         data-field="timestep-mode" title="Set as default">⭐</button></label>
-                                <select id="timestep-mode" onchange="if(window.app)app.updateTimestepMode()">
+                                <select id="timestep-mode" onchange="app?.updateTimestepMode()">
                                     <option value="adaptive">Adaptive (auto-adjust for stability)</option>
                                     <option value="fixed">Fixed (faster but riskier)</option>
+                                    <option value="schedule">Schedule (multi-segment)</option>
                                 </select>
                             </div>
                         </div>
@@ -275,6 +291,11 @@
                                 ⚠️ Fixed timestep is faster but may cause blow-up if too large. Start with 1e-4 and
                                 increase.
                             </p>
+                        </div>
+
+                        <!-- Schedule mode container -->
+                        <div id="schedule-options" style="display: none;">
+                            <div id="timestep-schedule-container"></div>
                         </div>
 
                         <hr style="border-color: var(--border-color); margin: 16px 0;">
@@ -845,6 +866,7 @@
     </div>
 
     <script src="/shared/unit_formatter.js"></script>
+    <script src="/shared/timestep_schedule.js"></script>
     <script src="/shared/boundary_mapper.js"></script>
     <script src="static/js/api.js"></script>
     <script src="static/js/websocket.js"></script>

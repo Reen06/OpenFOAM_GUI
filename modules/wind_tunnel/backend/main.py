@@ -141,14 +141,15 @@ class SolverSettings(BaseModel):
     wall_slip_fraction: float = 0.5  # 0-1, used when wall_type is partialSlip
     parallel: bool = False
     num_cores: int = 4
-    n_outer_correctors: int = 2
+    n_outer_correctors: int = 1
     relax_p: float = 0.3
     relax_u: float = 0.7
     adjust_timestep: bool = False
     max_co: float = 0.5
+    time_schedule: Optional[List[Dict[str, Any]]] = None
     # Advanced settings
     n_inner_correctors: int = 2
-    n_non_ortho_correctors: int = 0
+    n_non_ortho_correctors: int = 1
     res_p: float = 1e-4
     res_u: float = 1e-4
     div_scheme_u: str = "linearUpwind"  # linearUpwind or upwind

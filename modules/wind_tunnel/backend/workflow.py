@@ -393,15 +393,27 @@ class WorkflowManager:
             write_control = solver_settings.get("write_control", "timeStep")
             purge_write = solver_settings.get("purge_write", 0)
             
+            # Force deltaT=1 for steady-state solvers
+            steady_solvers = ['simpleFoam']
+            is_steady = solver in steady_solvers
+            if is_steady:
+                delta_t = 1
+            
             content = re.sub(r'endTime\s+[\d.e+-]+;', f'endTime {end_time};', content)
             content = re.sub(r'deltaT\s+[\d.e+-]+;', f'deltaT {delta_t};', content)
             content = re.sub(r'writeControl\s+\w+;', f'writeControl {write_control};', content)
             content = re.sub(r'writeInterval\s+[\d.e+-]+;', f'writeInterval {write_interval};', content)
             content = re.sub(r'purgeWrite\s+\d+;', f'purgeWrite {purge_write};', content)
             
-            # Adaptive time stepping
-            adjust_ts = "yes" if solver_settings.get("adjust_timestep", False) else "no"
-            max_co = solver_settings.get("max_co", 0.5)
+            # Adaptive time stepping (only for transient solvers)
+            time_schedule = solver_settings.get('time_schedule')
+            if is_steady:
+                adjust_ts = "no"
+                max_co = 0.5
+                time_schedule = None  # No schedule for steady-state
+            else:
+                adjust_ts = "yes" if solver_settings.get("adjust_timestep", False) else "no"
+                max_co = solver_settings.get("max_co", 0.5)
             
             # Ensure adjustTimeStep and maxCo entries exist or update them
             if 'adjustTimeStep' in content:
@@ -420,6 +432,16 @@ class WorkflowManager:
                 content = re.sub(r'maxDeltaT\s+[\d.e+-]+;', f'maxDeltaT {max_delta_t};', content)
             else:
                 content = content.replace('purgeWrite', f'maxDeltaT {max_delta_t};\npurgeWrite')
+            
+            # Schedule mode overrides
+            if time_schedule and len(time_schedule) > 0:
+                content = re.sub(r'adjustTimeStep\s+\w+;', 'adjustTimeStep yes;', content)
+                if 'runTimeModifiable' in content:
+                    content = re.sub(r'runTimeModifiable\s+\w+;', 'runTimeModifiable yes;', content)
+                else:
+                    content = re.sub(r'(adjustTimeStep\s+\w+;)', r'\1\nrunTimeModifiable yes;', content)
+                # deltaT is already set from solver_settings.delta_t above (line 397)
+                # No need to override from schedule segment — the user's initialDeltaT is used
             
             control_dict.write_text(content)
             
@@ -440,18 +462,337 @@ class WorkflowManager:
             if log_callback:
                 await log_callback(f"[SETTINGS] Updated transportProperties: nu={nu}")
         
+        # ============================================================
+        # Turbulence Model Configuration
+        # ============================================================
+        turb_model = solver_settings.get("turbulence_model", "kOmegaSST")
+        inlet_velocity = solver_settings.get("inlet_velocity", [10, 0, 0])
+        
+        # Calculate turbulence ICs from inlet velocity
+        import math
+        U_mag = math.sqrt(sum(v**2 for v in inlet_velocity))
+        turb_intensity = 0.05  # 5% turbulence intensity
+        length_scale = 0.01   # Approximate turbulence length scale (m)
+        Cmu = 0.09
+        
+        k_val = 1.5 * (U_mag * turb_intensity) ** 2
+        k_val = max(k_val, 1e-6)  # Floor to avoid zero
+        epsilon_val = Cmu**0.75 * k_val**1.5 / length_scale
+        epsilon_val = max(epsilon_val, 1e-6)
+        omega_val = k_val**0.5 / (Cmu**0.25 * length_scale)
+        omega_val = max(omega_val, 1e-6)
+        nuTilda_val = math.sqrt(1.5) * U_mag * turb_intensity * length_scale
+        nuTilda_val = max(nuTilda_val, 1e-6)
+        
+        # Model category definitions
+        KOMEGA_MODELS = {'kOmegaSST'}
+        KEPSILON_MODELS = {'kEpsilon', 'RNGkEpsilon', 'realizableKE'}
+        SA_MODELS = {'SpalartAllmaras'}
+        LES_MODELS = {'WALE', 'Smagorinsky', 'dynamicKEqn'}
+        DES_KOMEGA_MODELS = {'kOmegaSSTDES', 'kOmegaSSTDDES'}
+        DES_SA_MODELS = {'SpalartAllmarasDES', 'SpalartAllmarasDDES'}
+        
+        def get_model_fields(model):
+            """Return (required_fields, simulation_type, model_dict_name)"""
+            if model in KOMEGA_MODELS:
+                return {'k', 'omega', 'nut'}, 'RAS', 'RAS'
+            elif model in KEPSILON_MODELS:
+                return {'k', 'epsilon', 'nut'}, 'RAS', 'RAS'
+            elif model in SA_MODELS:
+                return {'nuTilda', 'nut'}, 'RAS', 'RAS'
+            elif model in LES_MODELS:
+                fields = {'nut'}
+                if model == 'dynamicKEqn':
+                    fields.add('k')
+                return fields, 'LES', 'LES'
+            elif model in DES_KOMEGA_MODELS:
+                return {'k', 'omega', 'nut'}, 'LES', 'LES'
+            elif model in DES_SA_MODELS:
+                return {'nuTilda', 'nut'}, 'LES', 'LES'
+            elif model == 'laminar':
+                return {'nut'}, 'laminar', None
+            else:
+                return {'k', 'omega', 'nut'}, 'RAS', 'RAS'
+        
+        required_fields, sim_type, model_dict = get_model_fields(turb_model)
+        all_turb_fields = {'k', 'omega', 'epsilon', 'nut', 'nuTilda'}
+        fields_to_remove = all_turb_fields - required_fields
+        zero_dir = case_dir / "0"
+        
+        # OpenFOAM header template
+        def of_header(obj_name, class_name="volScalarField"):
+            return f"""/*--------------------------------*- C++ -*----------------------------------*\\
+| =========                 |                                                 |
+| \\\\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\\\    /   O peration     | Version:  v2506                                 |
+|   \\\\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\\\/     M anipulation  |                                                 |
+\\*---------------------------------------------------------------------------*/
+FoamFile
+{{
+    version     2.0;
+    format      ascii;
+    class       {class_name};
+    object      {obj_name};
+}}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //\n"""
+        
+        # Field file generators
+        def gen_k_file(k_val):
+            return of_header("k") + f"""
+dimensions      [0 2 -2 0 0 0 0];
+
+internalField   uniform {k_val};
+
+boundaryField
+{{
+    inlet
+    {{
+        type            fixedValue;
+        value           uniform {k_val};
+    }}
+    outlet
+    {{
+        type            zeroGradient;
+    }}
+    walls
+    {{
+        type            kqRWallFunction;
+        value           uniform {k_val};
+    }}
+    model
+    {{
+        type            kqRWallFunction;
+        value           uniform {k_val};
+    }}
+    ".*"
+    {{
+        type            kqRWallFunction;
+        value           uniform {k_val};
+    }}
+}}
+
+// ************************************************************************* //
+"""
+
+        def gen_omega_file(omega_val):
+            return of_header("omega") + f"""
+dimensions      [0 0 -1 0 0 0 0];
+
+internalField   uniform {omega_val};
+
+boundaryField
+{{
+    inlet
+    {{
+        type            fixedValue;
+        value           uniform {omega_val};
+    }}
+    outlet
+    {{
+        type            zeroGradient;
+    }}
+    walls
+    {{
+        type            omegaWallFunction;
+        value           uniform {omega_val};
+    }}
+    model
+    {{
+        type            omegaWallFunction;
+        value           uniform {omega_val};
+    }}
+    ".*"
+    {{
+        type            omegaWallFunction;
+        value           uniform {omega_val};
+    }}
+}}
+
+// ************************************************************************* //
+"""
+
+        def gen_epsilon_file(epsilon_val):
+            return of_header("epsilon") + f"""
+dimensions      [0 2 -3 0 0 0 0];
+
+internalField   uniform {epsilon_val};
+
+boundaryField
+{{
+    inlet
+    {{
+        type            fixedValue;
+        value           uniform {epsilon_val};
+    }}
+    outlet
+    {{
+        type            zeroGradient;
+    }}
+    walls
+    {{
+        type            epsilonWallFunction;
+        value           uniform {epsilon_val};
+    }}
+    model
+    {{
+        type            epsilonWallFunction;
+        value           uniform {epsilon_val};
+    }}
+    ".*"
+    {{
+        type            epsilonWallFunction;
+        value           uniform {epsilon_val};
+    }}
+}}
+
+// ************************************************************************* //
+"""
+
+        def gen_nut_file():
+            return of_header("nut") + """
+dimensions      [0 2 -1 0 0 0 0];
+
+internalField   uniform 0;
+
+boundaryField
+{
+    inlet
+    {
+        type            calculated;
+        value           uniform 0;
+    }
+    outlet
+    {
+        type            calculated;
+        value           uniform 0;
+    }
+    walls
+    {
+        type            nutkWallFunction;
+        value           uniform 0;
+    }
+    model
+    {
+        type            nutkWallFunction;
+        value           uniform 0;
+    }
+    ".*"
+    {
+        type            nutkWallFunction;
+        value           uniform 0;
+    }
+}
+
+// ************************************************************************* //
+"""
+
+        def gen_nuTilda_file(nuTilda_val):
+            return of_header("nuTilda") + f"""
+dimensions      [0 2 -1 0 0 0 0];
+
+internalField   uniform {nuTilda_val};
+
+boundaryField
+{{
+    inlet
+    {{
+        type            fixedValue;
+        value           uniform {nuTilda_val};
+    }}
+    outlet
+    {{
+        type            zeroGradient;
+    }}
+    walls
+    {{
+        type            fixedValue;
+        value           uniform 0;
+    }}
+    model
+    {{
+        type            fixedValue;
+        value           uniform 0;
+    }}
+    ".*"
+    {{
+        type            fixedValue;
+        value           uniform 0;
+    }}
+}}
+
+// ************************************************************************* //
+"""
+        
+        # Remove unused field files
+        for field in fields_to_remove:
+            f = zero_dir / field
+            if f.exists():
+                f.unlink()
+        
+        # Create/update required field files with calculated values
+        field_generators = {
+            'k': lambda: gen_k_file(k_val),
+            'omega': lambda: gen_omega_file(omega_val),
+            'epsilon': lambda: gen_epsilon_file(epsilon_val),
+            'nut': gen_nut_file,
+            'nuTilda': lambda: gen_nuTilda_file(nuTilda_val),
+        }
+        
+        for field in required_fields:
+            f = zero_dir / field
+            f.write_text(field_generators[field]())
+        
         # Update turbulenceProperties
         turb_props = case_dir / "constant" / "turbulenceProperties"
-        if turb_props.exists():
-            content = turb_props.read_text()
+        if sim_type == 'laminar':
+            turb_content = of_header("turbulenceProperties", "dictionary") + """
+simulationType  laminar;
+
+// ************************************************************************* //
+"""
+        elif sim_type == 'RAS':
+            turb_content = of_header("turbulenceProperties", "dictionary") + f"""
+simulationType  RAS;
+
+RAS
+{{
+    RASModel        {turb_model};
+    turbulence      on;
+    printCoeffs     on;
+}}
+
+// ************************************************************************* //
+"""
+        else:  # LES (includes DES/DDES)
+            # For DES/DDES, the model name goes in the LES dict
+            if turb_model in DES_KOMEGA_MODELS or turb_model in DES_SA_MODELS:
+                les_model_name = turb_model
+            else:
+                les_model_name = turb_model
             
-            turb_model = solver_settings.get("turbulence_model", "kOmegaSST")
-            content = re.sub(r'RASModel\s+\w+;', f'RASModel {turb_model};', content)
-            
-            turb_props.write_text(content)
-            
-            if log_callback:
-                await log_callback(f"[SETTINGS] Updated turbulenceProperties: model={turb_model}")
+            turb_content = of_header("turbulenceProperties", "dictionary") + f"""
+simulationType  LES;
+
+LES
+{{
+    LESModel        {les_model_name};
+    turbulence      on;
+    printCoeffs     on;
+    delta           cubeRootVol;
+
+    cubeRootVolCoeffs
+    {{
+        deltaCoeff      1;
+    }}
+}}
+
+// ************************************************************************* //
+"""
+        turb_props.write_text(turb_content)
+        
+        if log_callback:
+            await log_callback(f"[SETTINGS] Turbulence: model={turb_model}, type={sim_type}, k={k_val:.4g}, eps={epsilon_val:.4g}, omega={omega_val:.4g}")
         
         # Update boundary conditions (0/ files)
         inlet_velocity = solver_settings.get("inlet_velocity", [10, 0, 0])
@@ -565,13 +906,43 @@ class WorkflowManager:
             res_u = solver_settings.get("res_u", 1e-4)
             
             # PIMPLE correctors
+            n_outer = solver_settings.get("n_outer_correctors", 1)
+            content = re.sub(r'nOuterCorrectors\s+\d+;', f'nOuterCorrectors {n_outer};', content)
             content = re.sub(r'nCorrectors\s+\d+;', f'nCorrectors {n_inner};', content)
             content = re.sub(r'nNonOrthogonalCorrectors\s+\d+;', f'nNonOrthogonalCorrectors {n_non_ortho};', content)
             
-            # SIMPLE residual control
-            if 'residualControl' in content:
-                content = re.sub(r'(p\s+)[\d.e-]+;', f'\\g<1>{res_p};', content)
-                content = re.sub(r'(U\s+)[\d.e-]+;', f'\\g<1>{res_u};', content)
+            # SIMPLE residual control - update ONLY inside the residualControl block
+            # The old regex r'(p\s+)[\d.e-]+;' was matching p/U in BOTH residualControl 
+            # and relaxationFactors blocks, corrupting relaxation factors!
+            def update_residual_control(content, res_p, res_u):
+                """Update residual values inside the residualControl block only."""
+                rc_match = re.search(r'(residualControl\s*\{)(.*?)(\})', content, re.DOTALL)
+                if rc_match:
+                    rc_block = rc_match.group(2)
+                    rc_block = re.sub(r'(p\s+)[\d.e+-]+;', f'\\g<1>{res_p};', rc_block)
+                    rc_block = re.sub(r'(U\s+)[\d.e+-]+;', f'\\g<1>{res_u};', rc_block)
+                    content = content[:rc_match.start(2)] + rc_block + content[rc_match.end(2):]
+                return content
+            
+            content = update_residual_control(content, res_p, res_u)
+            
+            # Update relaxation factors from user settings
+            relax_p = solver_settings.get("relax_p", 0.3)
+            relax_u = solver_settings.get("relax_u", 0.7)
+            
+            def update_relaxation_factors(content, relax_p, relax_u):
+                """Update relaxation values inside the relaxationFactors block only."""
+                rf_match = re.search(r'(relaxationFactors\s*\{)(.*?)(\}\s*\n)', content, re.DOTALL)
+                if rf_match:
+                    rf_block = rf_match.group(2)
+                    # Update p in fields sub-block
+                    rf_block = re.sub(r'(p\s+)[\d.e+-]+;', f'\\g<1>{relax_p};', rf_block)
+                    # Update U in equations sub-block
+                    rf_block = re.sub(r'(U\s+)[\d.e+-]+;', f'\\g<1>{relax_u};', rf_block)
+                    content = content[:rf_match.start(2)] + rf_block + content[rf_match.end(2):]
+                return content
+            
+            content = update_relaxation_factors(content, relax_p, relax_u)
             
             fv_solution.write_text(content)
             
@@ -581,6 +952,12 @@ class WorkflowManager:
             content = fv_schemes.read_text()
             
             ddt_scheme = solver_settings.get("ddt_scheme", "steadyState")
+            
+            # Force Euler ddt for transient solvers — steadyState ddt is invalid
+            transient_solvers = ['pimpleFoam', 'pisoFoam', 'icoFoam']
+            if solver in transient_solvers and ddt_scheme == 'steadyState':
+                ddt_scheme = 'Euler'
+            
             div_u = solver_settings.get("div_scheme_u", "linearUpwind")
             div_turb = solver_settings.get("div_scheme_turb", "upwind")
             
@@ -591,10 +968,36 @@ class WorkflowManager:
             content = re.sub(r'(ddtSchemes\s*\{[^}]*default\s+)\w+;', f'\\g<1>{ddt_scheme};', content)
             content = re.sub(r'div\(phi,U\)\s+[^;]+;', f'div(phi,U) {u_scheme_str};', content)
             
-            # Update turbulence div schemes
-            for field in ['k', 'omega', 'epsilon']:
-                content = re.sub(rf'div\(phi,{field}\)\s+[^;]+;', f'div(phi,{field}) {turb_scheme_str};', content)
-                
+            # Determine which turbulence fields this model uses
+            turb_model = solver_settings.get("turbulence_model", "kOmegaSST")
+            needs_k = turb_model in {'kOmegaSST', 'kEpsilon', 'RNGkEpsilon', 'realizableKE',
+                                      'kOmegaSSTDES', 'kOmegaSSTDDES', 'dynamicKEqn'}
+            needs_omega = turb_model in {'kOmegaSST', 'kOmegaSSTDES', 'kOmegaSSTDDES'}
+            needs_epsilon = turb_model in {'kEpsilon', 'RNGkEpsilon', 'realizableKE'}
+            needs_nuTilda = turb_model in {'SpalartAllmaras', 'SpalartAllmarasDES', 'SpalartAllmarasDDES'}
+            
+            # Build turbulence div scheme lines
+            turb_div_lines = []
+            if needs_k:
+                turb_div_lines.append(f'    div(phi,k) {turb_scheme_str};')
+            if needs_omega:
+                turb_div_lines.append(f'    div(phi,omega) {turb_scheme_str};')
+            if needs_epsilon:
+                turb_div_lines.append(f'    div(phi,epsilon) {turb_scheme_str};')
+            if needs_nuTilda:
+                turb_div_lines.append(f'    div(phi,nuTilda) {turb_scheme_str};')
+            turb_div_lines.append('    div((nuEff*dev2(T(grad(U))))) Gauss linear;')
+            
+            # Remove all existing turbulence div lines and the dev2 line
+            for pattern in [r'    div\(phi,k\)[^;]*;\n?', r'    div\(phi,omega\)[^;]*;\n?',
+                            r'    div\(phi,epsilon\)[^;]*;\n?', r'    div\(phi,nuTilda\)[^;]*;\n?',
+                            r'    div\(\(nuEff\*dev2\(T\(grad\(U\)\)\)\)\)[^;]*;\n?']:
+                content = re.sub(pattern, '', content)
+            
+            # Insert turbulence div lines before the closing brace of divSchemes
+            turb_div_block = '\n'.join(turb_div_lines) + '\n'
+            content = re.sub(r'(divSchemes\s*\{[^}]*div\(phi,U\)[^;]*;\n)',
+                             r'\1' + turb_div_block, content)
                 
             fv_schemes.write_text(content)
 
@@ -658,6 +1061,20 @@ class WorkflowManager:
                 
                 if log_callback:
                     await log_callback("[SETTINGS] Injected forces and forceCoeffs functionObjects")
+        
+        # ============= INJECT TIMESTEP SCHEDULE FUNCTION OBJECT =============
+        time_schedule = solver_settings.get('time_schedule')
+        if time_schedule and len(time_schedule) > 0:
+            schedule_fo = self.fo_manager.generate_timestep_schedule_fo(time_schedule)
+            if schedule_fo:
+                control_dict = case_dir / "system" / "controlDict"
+                if control_dict.exists():
+                    cd_content = control_dict.read_text()
+                    new_content = self.fo_manager.update_controldict(cd_content, {"timestepControl": schedule_fo})
+                    control_dict.write_text(new_content)
+                    
+                    if log_callback:
+                        await log_callback(f"[SETTINGS] Injected timestep schedule ({len(time_schedule)} segments)")
     
     async def _run_solver(
         self,

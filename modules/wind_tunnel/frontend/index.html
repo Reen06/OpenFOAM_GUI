@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OpenFOAM Web Wind Tunnel GUI</title>
     <link rel="stylesheet" href="static/css/styles.css">
+    <link rel="stylesheet" href="/shared/timestep_schedule.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 
@@ -279,11 +280,25 @@
                                         title="Set as default">⭐</button>
                                 </label>
                                 <select id="turbulence-model">
-                                    <option value="kOmegaSST">k-omega SST</option>
-                                    <option value="kEpsilon">k-epsilon</option>
-                                    <option value="RNGkEpsilon">RNG k-epsilon</option>
-                                    <option value="SpalartAllmaras">Spalart-Allmaras</option>
-                                    <option value="laminar">Laminar (no turbulence)</option>
+                                    <optgroup label="RANS Models">
+                                        <option value="kOmegaSST">k-ω SST (recommended)</option>
+                                        <option value="kEpsilon">k-ε Standard</option>
+                                        <option value="RNGkEpsilon">k-ε RNG</option>
+                                        <option value="realizableKE">k-ε Realizable</option>
+                                        <option value="SpalartAllmaras">Spalart-Allmaras</option>
+                                    </optgroup>
+                                    <optgroup label="LES / DES (Aeroacoustics)">
+                                        <option value="kOmegaSSTDDES">k-ω SST DDES (recommended for noise)</option>
+                                        <option value="kOmegaSSTDES">k-ω SST DES</option>
+                                        <option value="SpalartAllmarasDDES">SA DDES</option>
+                                        <option value="SpalartAllmarasDES">SA DES</option>
+                                        <option value="WALE">WALE (pure LES)</option>
+                                        <option value="Smagorinsky">Smagorinsky (pure LES)</option>
+                                        <option value="dynamicKEqn">Dynamic k-eqn (pure LES)</option>
+                                    </optgroup>
+                                    <optgroup label="Other">
+                                        <option value="laminar">Laminar (no turbulence)</option>
+                                    </optgroup>
                                 </select>
                             </div>
                         </div>
@@ -291,7 +306,18 @@
 
                     <div class="card">
                         <h4>Time Controls</h4>
+
+                        <!-- Row 1: Timestep Strategy (hidden for steady-state) + End Time -->
                         <div class="form-row">
+                            <div class="form-group" id="timestep-strategy-group">
+                                <label>Timestep Strategy
+                                    <button class="info-btn" data-info="timestep-strategy">?</button>
+                                </label>
+                                <select id="timestep-strategy" onchange="app?.updateTimestepStrategy()">
+                                    <option value="simple">Simple (single mode)</option>
+                                    <option value="schedule">Schedule (multi-segment)</option>
+                                </select>
+                            </div>
                             <div class="form-group">
                                 <label
                                     title="Number of iterations for steady solvers or end time (s) for transient solvers.">
@@ -301,15 +327,51 @@
                                 </label>
                                 <input type="number" id="end-time" value="1000" step="10">
                             </div>
-                            <div class="form-group">
-                                <label title="Time step size. Keep small (e.g. 0.001) for transient stability.">
-                                    Delta T
-                                    <button class="info-btn" data-info="delta-t">?</button>
-                                    <button class="default-btn" data-field="delta-t" title="Set as default">⭐</button>
-                                </label>
-                                <input type="number" id="delta-t" value="1e-5" step="1e-6">
+                        </div>
+
+                        <!-- Simple timestep options (hidden in schedule mode) -->
+                        <div id="simple-timestep-options">
+                            <div class="form-row" id="delta-t-row">
+                                <div class="form-group">
+                                    <label title="Time step size. Keep small (e.g. 0.001) for transient stability.">
+                                        Delta T
+                                        <button class="info-btn" data-info="delta-t">?</button>
+                                        <button class="default-btn" data-field="delta-t"
+                                            title="Set as default">⭐</button>
+                                    </label>
+                                    <input type="number" id="delta-t" value="1e-5" step="1e-6">
+                                </div>
+                            </div>
+                            <div class="form-row" id="adaptive-row">
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="adjust-timestep" checked>
+                                        Adjust Time Step <button class="info-btn" data-info="adjust-timestep">?</button>
+                                        <button class="default-btn" data-field="adjust-timestep"
+                                            title="Set as default">⭐</button>
+                                    </label>
+                                </div>
+                                <div class="form-group" id="max-co-group">
+                                    <label>Max Courant Number <button class="info-btn" data-info="max-co">?</button>
+                                        <button class="default-btn" data-field="max-co"
+                                            title="Set as default">⭐</button></label>
+                                    <input type="number" id="max-co" value="0.5" step="0.1" min="0.1" max="1.0">
+                                </div>
+                                <div class="form-group" id="max-delta-t-group">
+                                    <label>Max Delta T <button class="info-btn" data-info="max-delta-t">?</button>
+                                        <button class="default-btn" data-field="max-delta-t"
+                                            title="Set as default">⭐</button></label>
+                                    <input type="number" id="max-delta-t" value="1e-4" step="1e-5">
+                                </div>
                             </div>
                         </div>
+
+                        <!-- Schedule mode container -->
+                        <div id="schedule-timestep-options" style="display: none;">
+                            <div id="wt-timestep-schedule-container"></div>
+                        </div>
+
+                        <!-- Write controls (always visible) -->
                         <div class="form-row">
                             <div class="form-group">
                                 <label title="Controls when results are written. timeStep = every X iterations/steps.">
@@ -343,28 +405,6 @@
                                         title="Set as default">⭐</button>
                                 </label>
                                 <input type="number" id="purge-write" value="0" min="0">
-                            </div>
-                        </div>
-                        <div class="form-row" id="adaptive-row">
-                            <div class="form-group">
-                                <label>
-                                    <input type="checkbox" id="adjust-timestep" checked>
-                                    Adjust Time Step <button class="info-btn" data-info="adjust-timestep">?</button>
-                                    <button class="default-btn" data-field="adjust-timestep"
-                                        title="Set as default">⭐</button>
-                                </label>
-                            </div>
-                            <div class="form-group" id="max-co-group">
-                                <label>Max Courant Number <button class="info-btn" data-info="max-co">?</button> <button
-                                        class="default-btn" data-field="max-co"
-                                        title="Set as default">⭐</button></label>
-                                <input type="number" id="max-co" value="0.5" step="0.1" min="0.1" max="1.0">
-                            </div>
-                            <div class="form-group" id="max-delta-t-group">
-                                <label>Max Delta T <button class="info-btn" data-info="max-delta-t">?</button> <button
-                                        class="default-btn" data-field="max-delta-t"
-                                        title="Set as default">⭐</button></label>
-                                <input type="number" id="max-delta-t" value="1e-4" step="1e-5">
                             </div>
                         </div>
                     </div>
@@ -500,7 +540,7 @@
                                     <input type="number" id="n-non-ortho" value="0" min="0" max="4">
                                 </div>
                             </div>
-                            <div class="form-row">
+                            <div class="form-row" id="convergence-row">
                                 <div class="form-group">
                                     <label>Pressure Convergence <button class="info-btn" data-info="res-p">?</button>
                                         <button class="default-btn" data-field="res-p"
@@ -918,6 +958,7 @@
     </div>
 
     <script src="/shared/unit_formatter.js"></script>
+    <script src="/shared/timestep_schedule.js"></script>
     <script src="/shared/boundary_mapper.js"></script>
     <script src="static/js/api.js"></script>
     <script src="static/js/websocket.js"></script>

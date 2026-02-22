@@ -1503,6 +1503,17 @@ class App {
 
         // Save Mesh (old button, may not exist)
         document.getElementById('save-mesh-btn')?.addEventListener('click', () => this.saveMesh());
+
+        // End Time change handler - update schedule widget's total time
+        const endTimeInput = document.getElementById('end-time');
+        if (endTimeInput) {
+            endTimeInput.addEventListener('input', () => {
+                const newEnd = parseFloat(endTimeInput.value);
+                if (this.timestepSchedule && newEnd > 0) {
+                    this.timestepSchedule.setEndTime(newEnd);
+                }
+            });
+        }
     }
 
     // ==================== API Actions ====================
@@ -1935,6 +1946,7 @@ class App {
         const timestepModeEl = document.getElementById('timestep-mode');
         const timestepMode = timestepModeEl?.value || 'adaptive';
         const isFixedTimestep = timestepMode === 'fixed';
+        const isSchedule = timestepMode === 'schedule';
 
         let deltaT;
         if (isFixedTimestep) {
@@ -1965,7 +1977,7 @@ class App {
 
         const axis = rotationParams.rotationAxis.split(',').map(Number);
 
-        return {
+        const settings = {
             solver: document.getElementById('solver-select').value,
             turbulence_model: document.getElementById('turbulence-model')?.value || 'kOmegaSST',
             end_time: parseFloat(document.getElementById('end-time').value),
@@ -1992,19 +2004,48 @@ class App {
             // Include all propeller instances for multi-propeller support
             propeller_instances: null  // Will be populated below
         };
+
+        // Include schedule if in schedule mode
+        if (isSchedule && this.timestepSchedule) {
+            settings.time_schedule = this.timestepSchedule.getSchedule();
+            settings.delta_t = this.timestepSchedule.getInitialDeltaT();
+            settings.fixed_timestep = false; // Schedule handles its own switching
+        }
+
+        return settings;
     }
 
     updateTimestepMode() {
         const mode = document.getElementById('timestep-mode')?.value || 'adaptive';
         const adaptiveOptions = document.getElementById('adaptive-options');
         const fixedOptions = document.getElementById('fixed-options');
+        const scheduleOptions = document.getElementById('schedule-options');
+
+        // Hide all panels first
+        adaptiveOptions.style.display = 'none';
+        fixedOptions.style.display = 'none';
+        if (scheduleOptions) scheduleOptions.style.display = 'none';
 
         if (mode === 'adaptive') {
             adaptiveOptions.style.display = 'block';
-            fixedOptions.style.display = 'none';
-        } else {
-            adaptiveOptions.style.display = 'none';
+        } else if (mode === 'fixed') {
             fixedOptions.style.display = 'block';
+        } else if (mode === 'schedule') {
+            if (scheduleOptions) scheduleOptions.style.display = 'block';
+            // Create schedule widget if not yet created
+            if (!this.timestepSchedule) {
+                const container = document.getElementById('timestep-schedule-container');
+                if (container) {
+                    const endTime = parseFloat(document.getElementById('end-time')?.value || 0.1);
+                    const defaultDeltaT = parseFloat(document.getElementById('delta-t')?.value || 1e-5);
+                    const defaultMaxCo = parseFloat(document.getElementById('max-co')?.value || 0.5);
+                    this.timestepSchedule = new TimestepSchedule(container, {
+                        endTime: endTime,
+                        defaultDeltaT: defaultDeltaT,
+                        defaultMaxCo: defaultMaxCo
+                    });
+                }
+            }
         }
     }
 

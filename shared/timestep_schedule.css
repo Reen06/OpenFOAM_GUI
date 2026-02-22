@@ -1,0 +1,288 @@
+/* ============================================================================
+   Timestep Schedule Builder — Shared Component Styles
+   ============================================================================ */
+
+.ts-schedule {
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ts-schedule-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.ts-schedule-header h4 {
+    margin: 0;
+    font-size: 0.95em;
+    color: var(--text-primary, #e0e0e0);
+}
+
+/* ---- Timeline Bar ---- */
+.ts-timeline {
+    position: relative;
+    height: 48px;
+    margin-bottom: 20px;
+    user-select: none;
+}
+
+.ts-timeline-bar {
+    position: absolute;
+    top: 8px;
+    left: 0;
+    right: 0;
+    height: 32px;
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ts-segment-bar {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7em;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: rgba(255, 255, 255, 0.9);
+    cursor: pointer;
+    transition: filter 0.15s ease;
+    position: relative;
+    min-width: 24px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0 6px;
+}
+
+.ts-segment-bar:hover {
+    filter: brightness(1.2);
+}
+
+.ts-segment-bar.active {
+    outline: 2px solid #fff;
+    outline-offset: -2px;
+    z-index: 1;
+}
+
+.ts-segment-bar.mode-fixed {
+    background: linear-gradient(135deg, #e67e22, #d35400);
+}
+
+.ts-segment-bar.mode-adaptive {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+}
+
+/* Time labels under bar */
+.ts-timeline-labels {
+    position: absolute;
+    top: 42px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7em;
+    color: var(--text-muted, #888);
+}
+
+/* ---- Segment Editor List ---- */
+.ts-segments {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ts-segment-row {
+    display: grid;
+    grid-template-columns: 32px 1fr 120px 140px 32px;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.ts-segment-row:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.ts-segment-row.active {
+    border-color: var(--accent-primary, #6366f1);
+    background: rgba(99, 102, 241, 0.06);
+}
+
+.ts-seg-num {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75em;
+    font-weight: 700;
+    color: #fff;
+}
+
+.ts-seg-num.mode-fixed {
+    background: #e67e22;
+}
+
+.ts-seg-num.mode-adaptive {
+    background: #3498db;
+}
+
+/* Time range display */
+.ts-seg-time {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85em;
+}
+
+.ts-seg-time input {
+    width: 90px;
+    padding: 5px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.3);
+    color: var(--text-primary, #e0e0e0);
+    font-size: 0.9em;
+    text-align: center;
+    font-family: 'Inter', monospace;
+}
+
+.ts-seg-time input:focus {
+    border-color: var(--accent-primary, #6366f1);
+    outline: none;
+}
+
+.ts-seg-time .ts-arrow {
+    color: var(--text-muted, #888);
+    font-size: 1em;
+}
+
+/* Mode selector */
+.ts-seg-mode select {
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.3);
+    color: var(--text-primary, #e0e0e0);
+    font-size: 0.85em;
+    cursor: pointer;
+}
+
+.ts-seg-mode select:focus {
+    border-color: var(--accent-primary, #6366f1);
+    outline: none;
+}
+
+/* Param (deltaT or maxCo) */
+.ts-seg-param {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8em;
+}
+
+.ts-seg-param label {
+    color: var(--text-muted, #888);
+    font-size: 0.9em;
+    white-space: nowrap;
+}
+
+.ts-seg-param input {
+    width: 85px;
+    padding: 5px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.3);
+    color: var(--text-primary, #e0e0e0);
+    font-size: 0.9em;
+    text-align: center;
+    font-family: 'Inter', monospace;
+}
+
+.ts-seg-param input:focus {
+    border-color: var(--accent-primary, #6366f1);
+    outline: none;
+}
+
+/* Delete button */
+.ts-seg-delete {
+    width: 26px;
+    height: 26px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted, #888);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1em;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.ts-seg-delete:hover {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+}
+
+.ts-seg-delete:disabled {
+    opacity: 0.2;
+    cursor: not-allowed;
+}
+
+/* Add segment button */
+.ts-add-segment {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 8px;
+    margin-top: 4px;
+    border: 1px dashed rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted, #888);
+    font-size: 0.85em;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.ts-add-segment:hover {
+    border-color: var(--accent-primary, #6366f1);
+    color: var(--accent-primary, #6366f1);
+    background: rgba(99, 102, 241, 0.05);
+}
+
+/* Validation */
+.ts-validation {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 0.8em;
+    display: none;
+}
+
+.ts-validation.error {
+    display: block;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+}
+
+.ts-validation.valid {
+    display: none;
+}

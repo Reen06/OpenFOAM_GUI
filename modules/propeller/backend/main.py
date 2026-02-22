@@ -146,6 +146,7 @@ class SolverSettings(BaseModel):
     # Timestep control
     max_co: float = 0.5
     fixed_timestep: bool = False
+    time_schedule: Optional[List[Dict[str, Any]]] = None
     # PIMPLE settings
     n_outer_correctors: int = 4
     relax_p: float = 0.2

@@ -391,17 +391,36 @@ class App {
             });
         }
 
-        // Solver change handler for adaptive row
+        // Solver change handler for adaptive row and timestep strategy
         const solverSelect = document.getElementById('solver-select');
         const adaptiveRow = document.getElementById('adaptive-row');
-        if (solverSelect && adaptiveRow) {
-            solverSelect.addEventListener('change', () => {
+        const timestepStrategyGroup = document.getElementById('timestep-strategy-group');
+        const simpleTimestepOpts = document.getElementById('simple-timestep-options');
+        const scheduleTimestepOpts = document.getElementById('schedule-timestep-options');
+        if (solverSelect) {
+            const updateSolverDependentUI = () => {
                 const isTransient = solverSelect.value.toLowerCase().includes('pimple');
-                adaptiveRow.style.display = isTransient ? 'flex' : 'none';
-            });
+                const deltaTRow = document.getElementById('delta-t-row');
+                const convergenceRow = document.getElementById('convergence-row');
+                // Hide adaptive row for steady-state (but keep Delta T visible)
+                if (adaptiveRow) adaptiveRow.style.display = isTransient ? 'flex' : 'none';
+                // Hide timestep strategy (schedule/simple) for steady-state solvers
+                if (timestepStrategyGroup) timestepStrategyGroup.style.display = isTransient ? '' : 'none';
+                // Hide Delta T for steady-state (always 1, no user control needed)
+                if (deltaTRow) deltaTRow.style.display = isTransient ? '' : 'none';
+                // Hide convergence thresholds for transient (only used by SIMPLE)
+                if (convergenceRow) convergenceRow.style.display = isTransient ? 'none' : 'flex';
+                if (!isTransient) {
+                    // Reset to simple and hide schedule panel
+                    const strategyEl = document.getElementById('timestep-strategy');
+                    if (strategyEl) strategyEl.value = 'simple';
+                    if (simpleTimestepOpts) simpleTimestepOpts.style.display = 'block';
+                    if (scheduleTimestepOpts) scheduleTimestepOpts.style.display = 'none';
+                }
+            };
+            solverSelect.addEventListener('change', updateSolverDependentUI);
             // Initial state
-            const isTransient = solverSelect.value.toLowerCase().includes('pimple');
-            adaptiveRow.style.display = isTransient ? 'flex' : 'none';
+            updateSolverDependentUI();
         }
 
         // Adjust timestep handler for max-co group
@@ -413,6 +432,17 @@ class App {
             });
             // Initial state
             maxCoGroup.style.display = adjustTs.checked ? 'flex' : 'none';
+        }
+
+        // End Time change handler - update schedule widget's total time
+        const endTimeInput = document.getElementById('end-time');
+        if (endTimeInput) {
+            endTimeInput.addEventListener('input', () => {
+                const newEnd = parseFloat(endTimeInput.value);
+                if (this.timestepSchedule && newEnd > 0) {
+                    this.timestepSchedule.setEndTime(newEnd);
+                }
+            });
         }
 
         // Wall type handler for partial slip slider
@@ -852,6 +882,11 @@ class App {
                 // Don't hide progress container to preserve logs from previous run
             }
 
+            // Restore solver settings from saved config
+            if (details.solver_config && Object.keys(details.solver_config).length > 0) {
+                this.restoreSolverSettings(details.solver_config);
+            }
+
             // Update run list selection
             this.renderRuns(this.runsData);
 
@@ -957,7 +992,10 @@ class App {
     }
 
     getSolverSettings() {
-        return {
+        const strategy = document.getElementById('timestep-strategy')?.value || 'simple';
+        const isSchedule = strategy === 'schedule';
+
+        const settings = {
             solver: document.getElementById('solver-select')?.value || 'simpleFoam',
             turbulence_model: document.getElementById('turbulence-model')?.value || 'kOmegaSST',
             end_time: parseFloat(document.getElementById('end-time')?.value) || 1000,
@@ -988,6 +1026,121 @@ class App {
             div_scheme_turb: document.getElementById('div-scheme-turb')?.value || 'upwind',
             ddt_scheme: document.getElementById('ddt-scheme')?.value || 'steadyState'
         };
+
+        // Include schedule if in schedule mode
+        if (isSchedule && this.timestepSchedule) {
+            settings.time_schedule = this.timestepSchedule.getSchedule();
+            settings.delta_t = this.timestepSchedule.getInitialDeltaT();
+            settings.adjust_timestep = true; // Schedule always uses adjustTimeStep yes
+        }
+
+        return settings;
+    }
+
+    /**
+     * Restore solver settings UI from saved configuration.
+     */
+    restoreSolverSettings(config) {
+        if (!config) return;
+
+        // Helper to set a select/input value safely
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el && val !== undefined && val !== null) {
+                el.value = val;
+            }
+        };
+        const setChecked = (id, val) => {
+            const el = document.getElementById(id);
+            if (el && val !== undefined) el.checked = !!val;
+        };
+
+        // Basic solver settings
+        setVal('solver-select', config.solver);
+        setVal('turbulence-model', config.turbulence_model);
+        setVal('end-time', config.end_time);
+        setVal('delta-t', config.delta_t);
+        setVal('write-control', config.write_control);
+        setVal('write-interval', config.write_interval);
+        setVal('purge-write', config.purge_write);
+
+        // Inlet / outlet
+        if (Array.isArray(config.inlet_velocity)) {
+            setVal('inlet-ux', config.inlet_velocity[0]);
+            setVal('inlet-uy', config.inlet_velocity[1]);
+            setVal('inlet-uz', config.inlet_velocity[2]);
+        }
+        setVal('outlet-pressure', config.outlet_pressure);
+        setVal('wall-type', config.wall_type);
+
+        // Parallel
+        setChecked('enable-parallel', config.parallel);
+        setVal('num-cores', config.num_cores);
+
+        // Relaxation & solver numerics
+        setVal('relax-p', config.relax_p);
+        setVal('relax-u', config.relax_u);
+        setVal('n-correctors', config.n_inner_correctors);
+        setVal('n-non-ortho', config.n_non_ortho_correctors);
+        setVal('res-p', config.res_p);
+        setVal('res-u', config.res_u);
+        setVal('div-scheme-u', config.div_scheme_u);
+        setVal('div-scheme-turb', config.div_scheme_turb);
+        setVal('ddt-scheme', config.ddt_scheme);
+
+        // Adaptive timestep settings
+        setChecked('adjust-timestep', config.adjust_timestep);
+        setVal('max-co', config.max_co);
+        setVal('max-delta-t', config.max_delta_t);
+
+        // Timestep strategy: schedule vs simple
+        if (config.time_schedule && config.time_schedule.length > 0) {
+            setVal('timestep-strategy', 'schedule');
+            this.updateTimestepStrategy();
+            // Load segments into the widget
+            if (this.timestepSchedule) {
+                this.timestepSchedule.setSchedule(config.time_schedule);
+            }
+        } else {
+            setVal('timestep-strategy', 'simple');
+            this.updateTimestepStrategy();
+        }
+
+        // Trigger solver-dependent UI updates (hides/shows adaptive row for steady-state)
+        const solverSelect = document.getElementById('solver-select');
+        if (solverSelect) solverSelect.dispatchEvent(new Event('change'));
+
+        // Trigger adjust-timestep change to update max-co visibility
+        const adjustTs = document.getElementById('adjust-timestep');
+        if (adjustTs) adjustTs.dispatchEvent(new Event('change'));
+    }
+
+    updateTimestepStrategy() {
+        const strategy = document.getElementById('timestep-strategy')?.value || 'simple';
+        const simpleOptions = document.getElementById('simple-timestep-options');
+        const scheduleOptions = document.getElementById('schedule-timestep-options');
+
+        if (strategy === 'simple') {
+            if (simpleOptions) simpleOptions.style.display = 'block';
+            if (scheduleOptions) scheduleOptions.style.display = 'none';
+        } else {
+            if (simpleOptions) simpleOptions.style.display = 'none';
+            if (scheduleOptions) scheduleOptions.style.display = 'block';
+            // Create schedule widget if not yet created
+            if (!this.timestepSchedule) {
+                const container = document.getElementById('wt-timestep-schedule-container');
+                if (container) {
+                    const endTime = parseFloat(document.getElementById('end-time')?.value || 1000);
+                    const defaultDeltaT = parseFloat(document.getElementById('delta-t')?.value || 1e-5);
+                    const defaultMaxCo = parseFloat(document.getElementById('max-co')?.value || 0.5);
+                    this.timestepSchedule = new TimestepSchedule(container, {
+                        endTime: endTime,
+                        defaultDeltaT: defaultDeltaT,
+                        defaultMaxCo: defaultMaxCo
+                    });
+                }
+            }
+        }
     }
 
     getMaterialSettings() {

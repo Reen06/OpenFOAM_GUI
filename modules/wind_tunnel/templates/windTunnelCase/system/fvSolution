@@ -30,7 +30,7 @@ solvers
         relTol          0;
     }
 
-    "(U|k|omega|epsilon)"
+    "(U|k|omega|epsilon|nuTilda)"
     {
         solver          smoothSolver;
         smoother        symGaussSeidel;
@@ -38,7 +38,7 @@ solvers
         relTol          0.1;
     }
 
-    "(U|k|omega|epsilon)Final"
+    "(U|k|omega|epsilon|nuTilda)Final"
     {
         $U;
         relTol          0;
@@ -54,13 +54,13 @@ SIMPLE
     {
         p               1e-4;
         U               1e-4;
-        "(k|omega|epsilon)" 1e-4;
+        "(k|omega|epsilon|nuTilda)" 1e-4;
     }
 }
 
 PIMPLE
 {
-    nOuterCorrectors 2;
+    nOuterCorrectors 1;
     nCorrectors      2;
     nNonOrthogonalCorrectors 1;
 }

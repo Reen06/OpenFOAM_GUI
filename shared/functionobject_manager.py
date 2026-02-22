@@ -86,6 +86,76 @@ class FunctionObjectManager:
     }}
 """
 
+    def generate_timestep_schedule_fo(self, segments: List[Dict[str, Any]]) -> str:
+        """Generate a coded functionObject for dynamic timestep schedule control.
+        
+        Args:
+            segments: list of dicts with keys:
+                startTime, endTime, mode ('fixed'|'adaptive'), deltaT, maxCo
+        
+        Returns:
+            OpenFOAM functionObject string for injection into controlDict.
+        """
+        if not segments:
+            return ""
+        
+        # Build C++ if/else-if chain
+        cpp_lines = []
+        cpp_lines.append("        const scalar t = mesh().time().value();")
+        cpp_lines.append("        auto& runTime = const_cast<Time&>(mesh().time());")
+        cpp_lines.append("        auto& cd = const_cast<dictionary&>(runTime.controlDict());")
+        cpp_lines.append("")
+        
+        for i, seg in enumerate(segments):
+            start_t = seg.get("startTime", 0)
+            end_t = seg.get("endTime", 1)
+            mode = seg.get("mode", "adaptive")
+            delta_t = seg.get("deltaT", 1e-5)
+            max_co = seg.get("maxCo", 0.5)
+            
+            # Build condition
+            if i == 0:
+                prefix = "if"
+            else:
+                prefix = "else if"
+            
+            condition = f"t < {end_t}"
+            
+            cpp_lines.append(f"        {prefix} ({condition})")
+            cpp_lines.append("        {")
+            
+            if mode == "fixed":
+                cpp_lines.append(f"            // Segment {i}: fixed, deltaT = {delta_t}")
+                cpp_lines.append(f"            runTime.setDeltaT({delta_t});")
+                cpp_lines.append(f'            cd.set("adjustTimeStep", false);')
+            else:
+                cpp_lines.append(f"            // Segment {i}: adaptive, maxCo = {max_co}")
+                cpp_lines.append(f'            cd.set("adjustTimeStep", true);')
+                cpp_lines.append(f'            cd.set("maxCo", {max_co});')
+            
+            cpp_lines.append("        }")
+        
+        cpp_body = "\n".join(cpp_lines)
+        
+        # Build the full functionObject (avoid f-string for the outer braces)
+        fo = (
+            "\n"
+            "    timestepControl\n"
+            "    {\n"
+            "        type    coded;\n"
+            "        libs    (utilityFunctionObjects);\n"
+            "        name    timestepControl;\n"
+            "\n"
+            "        codeExecute\n"
+            "        #{\n"
+            f"{cpp_body}\n"
+            "        #};\n"
+            "    }\n"
+        )
+        
+        return fo
+
+
     def update_controldict(self, 
                           content: str, 
                           function_objects: Dict[str, str]) -> str:

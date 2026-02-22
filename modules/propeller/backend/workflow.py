@@ -797,12 +797,15 @@ actions
             
             delta_t = solver_settings.get("delta_t", 1e-5)
             max_co = solver_settings.get("max_co", 0.5)
+            time_schedule = solver_settings.get("time_schedule")
             
             log_lines.append(f"=== TIMESTEP SETTINGS RECEIVED ===")
             log_lines.append(f"  raw fixed_timestep value: {raw_fixed} (type: {type(raw_fixed).__name__})")
             log_lines.append(f"  parsed fixed_timestep: {fixed_timestep}")
             log_lines.append(f"  delta_t: {delta_t}")
             log_lines.append(f"  max_co: {max_co}")
+            if time_schedule:
+                log_lines.append(f"  time_schedule: {len(time_schedule)} segments")
             
             # Update controlDict
             control_dict = stator_dir / "system" / "controlDict"
@@ -848,13 +851,27 @@ actions
                     # Insert before functions block or at end
                     content = re.sub(r'(maxCo\s+[\d.e+-]+;)', rf'\1\nmaxDeltaT       {max_delta_t};', content)
                 
-                # ========== CRITICAL: HANDLE FIXED/ADJUSTABLE TIMESTEP ==========
-                # This is where we enforce fixed timestep behavior
-                if fixed_timestep:
+                # ========== HANDLE TIMESTEP MODE ==========
+                if time_schedule and len(time_schedule) > 0:
+                    # SCHEDULE MODE: coded functionObject handles switching
+                    log_lines.append(f">>> APPLYING TIMESTEP SCHEDULE MODE ({len(time_schedule)} segments) <<<")
+                    content = re.sub(r'adjustTimeStep\s+\w+\s*;', 'adjustTimeStep  yes;', content)
+                    # Ensure runTimeModifiable is set
+                    if 'runTimeModifiable' in content:
+                        content = re.sub(r'runTimeModifiable\s+\w+\s*;', 'runTimeModifiable yes;', content)
+                    else:
+                        content = re.sub(r'(adjustTimeStep\s+\w+\s*;)', r'\1\nrunTimeModifiable yes;', content)
+                    # Set initial deltaT from first segment
+                    first_seg = time_schedule[0]
+                    init_dt = first_seg.get('deltaT', delta_t)
+                    content = re.sub(r'deltaT\s+[\d.e+-]+;', f'deltaT          {init_dt};', content)
+                    log_lines.append(f"    adjustTimeStep=yes, runTimeModifiable=yes, initial deltaT={init_dt}")
+                    for si, seg in enumerate(time_schedule):
+                        log_lines.append(f"    Segment {si}: {seg.get('startTime',0)} -> {seg.get('endTime',0)}, mode={seg.get('mode','?')}, deltaT={seg.get('deltaT','?')}, maxCo={seg.get('maxCo','?')}")
+                elif fixed_timestep:
                     # FIXED TIMESTEP: OpenFOAM must NOT adjust dt
                     log_lines.append(f">>> APPLYING FIXED TIMESTEP MODE <<<")
                     log_lines.append(f"    Setting adjustTimeStep to NO")
-                    # Replace any variation of adjustTimeStep yes/no/true/false
                     content = re.sub(r'adjustTimeStep\s+\w+\s*;', 'adjustTimeStep  no;', content)
                 else:
                     # ADAPTIVE TIMESTEP: OpenFOAM will adjust dt based on maxCo
@@ -887,25 +904,30 @@ actions
                 log_lines.append(f"  maxCo: {actual_maxco}")
                 log_lines.append(f"  maxDeltaT: {actual_maxdt}")
                 
-                # CRITICAL VALIDATION
-                if fixed_timestep and actual_adjust.lower() != "no":
-                    error_msg = f"CRITICAL ERROR: fixed_timestep=True but adjustTimeStep={actual_adjust} (expected 'no')"
-                    log_lines.append(f"!!! {error_msg} !!!")
-                    # Write log before failing
-                    with open(log_file, 'w') as f:
-                        f.write('\n'.join(log_lines))
-                    return False, error_msg
-                
-                if not fixed_timestep and actual_adjust.lower() != "yes":
-                    error_msg = f"CRITICAL ERROR: fixed_timestep=False but adjustTimeStep={actual_adjust} (expected 'yes')"
-                    log_lines.append(f"!!! {error_msg} !!!")
-                    with open(log_file, 'w') as f:
-                        f.write('\n'.join(log_lines))
-                    return False, error_msg
+                # CRITICAL VALIDATION (skip for schedule mode - coded FO handles it)
+                if not time_schedule:
+                    if fixed_timestep and actual_adjust.lower() != "no":
+                        error_msg = f"CRITICAL ERROR: fixed_timestep=True but adjustTimeStep={actual_adjust} (expected 'no')"
+                        log_lines.append(f"!!! {error_msg} !!!")
+                        with open(log_file, 'w') as f:
+                            f.write('\n'.join(log_lines))
+                        return False, error_msg
+                    
+                    if not fixed_timestep and actual_adjust.lower() != "yes":
+                        error_msg = f"CRITICAL ERROR: fixed_timestep=False but adjustTimeStep={actual_adjust} (expected 'yes')"
+                        log_lines.append(f"!!! {error_msg} !!!")
+                        with open(log_file, 'w') as f:
+                            f.write('\n'.join(log_lines))
+                        return False, error_msg
                 
                 log_lines.append(f"✓ VERIFICATION PASSED - controlDict correctly configured")
                 
-                adjust_str = "no (fixed)" if fixed_timestep else f"yes (maxCo={max_co})"
+                if time_schedule:
+                    adjust_str = f"yes (schedule, {len(time_schedule)} segments)"
+                elif fixed_timestep:
+                    adjust_str = "no (fixed)"
+                else:
+                    adjust_str = f"yes (maxCo={max_co})"
                 log_lines.append(f"Updated controlDict: solver={solver_settings['solver']}, endTime={solver_settings['end_time']}, deltaT={delta_t}, adjustTimeStep={adjust_str}")
             
             # Update fvSolution with PIMPLE and relaxation settings
@@ -1125,27 +1147,73 @@ dynamicMultiMotionSolverFvMeshCoeffs
                 
                 log_lines.append(f"Updated transportProperties: nu={material_settings['kinematic_viscosity']}")
             
-            # Update turbulenceProperties to match selected turbulence model
+            # Update turbulenceProperties with full model support
             turb_model = solver_settings.get("turbulence_model", "kEpsilon")
             turb_props = stator_dir / "constant" / "turbulenceProperties"
-            if turb_props.exists():
-                with open(turb_props, 'r') as f:
-                    content = f.read()
-                content = re.sub(r'RASModel\s+\w+;', f'RASModel        {turb_model};', content)
-                with open(turb_props, 'w') as f:
-                    f.write(content)
-                log_lines.append(f"Updated turbulenceProperties: RASModel={turb_model}")
             
-            # Handle omega/epsilon field files based on turbulence model
+            import math
+            inlet_velocity_val = solver_settings.get("inlet_velocity", [10, 0, 0])
+            if isinstance(inlet_velocity_val, (list, tuple)):
+                U_mag = math.sqrt(sum(v**2 for v in inlet_velocity_val))
+            else:
+                U_mag = float(inlet_velocity_val) if inlet_velocity_val else 10.0
+            turb_intensity = 0.05
+            length_scale = 0.01
+            Cmu = 0.09
+            
+            k_val = max(1.5 * (U_mag * turb_intensity) ** 2, 1e-6)
+            epsilon_val = max(Cmu**0.75 * k_val**1.5 / length_scale, 1e-6)
+            omega_val = max(k_val**0.5 / (Cmu**0.25 * length_scale), 1e-6)
+            nuTilda_val = max(math.sqrt(1.5) * U_mag * turb_intensity * length_scale, 1e-6)
+            
+            # Model categories
+            KOMEGA_MODELS = {'kOmegaSST'}
+            KEPSILON_MODELS = {'kEpsilon', 'RNGkEpsilon', 'realizableKE'}
+            SA_MODELS = {'SpalartAllmaras'}
+            LES_MODELS = {'WALE', 'Smagorinsky', 'dynamicKEqn'}
+            DES_KOMEGA_MODELS = {'kOmegaSSTDES', 'kOmegaSSTDDES'}
+            DES_SA_MODELS = {'SpalartAllmarasDES', 'SpalartAllmarasDDES'}
+            
+            def get_sim_type(model):
+                if model in KOMEGA_MODELS or model in KEPSILON_MODELS or model in SA_MODELS:
+                    return 'RAS'
+                elif model == 'laminar':
+                    return 'laminar'
+                else:
+                    return 'LES'
+            
+            def get_required_fields(model):
+                if model in KOMEGA_MODELS or model in DES_KOMEGA_MODELS:
+                    return {'k', 'omega', 'nut'}
+                elif model in KEPSILON_MODELS:
+                    return {'k', 'epsilon', 'nut'}
+                elif model in SA_MODELS or model in DES_SA_MODELS:
+                    return {'nuTilda', 'nut'}
+                elif model in LES_MODELS:
+                    fields = {'nut'}
+                    if model == 'dynamicKEqn':
+                        fields.add('k')
+                    return fields
+                elif model == 'laminar':
+                    return {'nut'}
+                else:
+                    return {'k', 'omega', 'nut'}
+            
+            sim_type = get_sim_type(turb_model)
+            required_fields = get_required_fields(turb_model)
+            all_turb_fields = {'k', 'omega', 'epsilon', 'nut', 'nuTilda'}
+            fields_to_remove = all_turb_fields - required_fields
             zero_dir = stator_dir / "0"
-            epsilon_file = zero_dir / "epsilon"
-            omega_file = zero_dir / "omega"
-            needs_omega = turb_model in ("kOmegaSST", "kOmega")
-            needs_epsilon = turb_model in ("kEpsilon", "realizableKE", "RNGkEpsilon", "LaunderSharmaKE")
             
-            if needs_omega and not omega_file.exists():
-                # Create omega file from epsilon template
-                omega_content = """/*--------------------------------*- C++ -*----------------------------------*\\
+            # Remove unused field files
+            for field in fields_to_remove:
+                f = zero_dir / field
+                if f.exists():
+                    f.unlink()
+            
+            # Simple field content generator for propeller (uses wildcard BCs)
+            def gen_field(name, dims, value, wall_type="fixedValue"):
+                return f"""/*--------------------------------*- C++ -*----------------------------------*\\
 | =========                 |                                                 |
 | \\\\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
 |  \\\\    /   O peration     | Version:  v2506                                 |
@@ -1153,73 +1221,58 @@ dynamicMultiMotionSolverFvMeshCoeffs
 |    \\\\/     M anipulation  |                                                 |
 \\*---------------------------------------------------------------------------*/
 FoamFile
-{
+{{
     version     2.0;
     format      ascii;
     class       volScalarField;
-    object      omega;
-}
-// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+    object      {name};
+}}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-dimensions      [0 0 -1 0 0 0 0];
+dimensions      {dims};
 
-internalField   uniform 1.0;
+internalField   uniform {value};
 
 boundaryField
-{
+{{
     ".*"
-    {
-        type            fixedValue;
+    {{
+        type            {wall_type};
         value           $internalField;
-    }
-}
+    }}
+}}
 
 // ************************************************************************* //
 """
-                with open(omega_file, 'w') as f:
-                    f.write(omega_content)
-                # Remove epsilon if it exists (wrong for kOmega models)
-                if epsilon_file.exists():
-                    epsilon_file.unlink()
-                log_lines.append(f"Created 0/omega, removed 0/epsilon for {turb_model}")
-            elif needs_epsilon and not epsilon_file.exists():
-                # Create epsilon file from omega template  
-                epsilon_content = """/*--------------------------------*- C++ -*----------------------------------*\\
-| =========                 |                                                 |
-| \\\\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
-|  \\\\    /   O peration     | Version:  v2506                                 |
-|   \\\\  /    A nd           | Website:  www.openfoam.com                      |
-|    \\\\/     M anipulation  |                                                 |
-\\*---------------------------------------------------------------------------*/
-FoamFile
-{
-    version     2.0;
-    format      ascii;
-    class       volScalarField;
-    object      epsilon;
-}
-// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
-
-dimensions      [0 2 -3 0 0 0 0];
-
-internalField   uniform 0.1;
-
-boundaryField
-{
-    ".*"
-    {
-        type            fixedValue;
-        value           $internalField;
-    }
-}
-
-// ************************************************************************* //
+            
+            field_content = {
+                'k': gen_field('k', '[0 2 -2 0 0 0 0]', k_val, 'fixedValue'),
+                'omega': gen_field('omega', '[0 0 -1 0 0 0 0]', omega_val, 'fixedValue'),
+                'epsilon': gen_field('epsilon', '[0 2 -3 0 0 0 0]', epsilon_val, 'fixedValue'),
+                'nut': gen_field('nut', '[0 2 -1 0 0 0 0]', 0, 'calculated'),
+                'nuTilda': gen_field('nuTilda', '[0 2 -1 0 0 0 0]', nuTilda_val, 'fixedValue'),
+            }
+            
+            for field in required_fields:
+                (zero_dir / field).write_text(field_content[field])
+            
+            # Write turbulenceProperties
+            if sim_type == 'laminar':
+                turb_content = f"""FoamFile {{ version 2.0; format ascii; class dictionary; object turbulenceProperties; }}
+simulationType  laminar;
 """
-                with open(epsilon_file, 'w') as f:
-                    f.write(epsilon_content)
-                if omega_file.exists():
-                    omega_file.unlink()
-                log_lines.append(f"Created 0/epsilon, removed 0/omega for {turb_model}")
+            elif sim_type == 'RAS':
+                turb_content = f"""FoamFile {{ version 2.0; format ascii; class dictionary; object turbulenceProperties; }}
+simulationType  RAS;
+RAS {{ RASModel {turb_model}; turbulence on; printCoeffs on; }}
+"""
+            else:
+                turb_content = f"""FoamFile {{ version 2.0; format ascii; class dictionary; object turbulenceProperties; }}
+simulationType  LES;
+LES {{ LESModel {turb_model}; turbulence on; printCoeffs on; delta cubeRootVol; cubeRootVolCoeffs {{ deltaCoeff 1; }} }}
+"""
+            turb_props.write_text(turb_content)
+            log_lines.append(f"Turbulence: {turb_model} ({sim_type}), k={k_val:.4g}, eps={epsilon_val:.4g}, omega={omega_val:.4g}")
             
             # Update inlet velocity if wind enabled
             if inlet_velocity:
@@ -1532,6 +1585,21 @@ method          scotch;
                     
                     if log_callback:
                         await log_callback(run_id, {"type": "log", "step": "Apply Settings", "line": "Injected forces functionObject"})
+            
+            # ============= INJECT TIMESTEP SCHEDULE FUNCTION OBJECT =============
+            time_schedule = solver_settings.get('time_schedule')
+            if time_schedule and len(time_schedule) > 0:
+                schedule_fo = self.fo_manager.generate_timestep_schedule_fo(time_schedule)
+                if schedule_fo:
+                    control_dict = stator_dir / "system" / "controlDict"
+                    if control_dict.exists():
+                        cd_content = control_dict.read_text()
+                        new_content = self.fo_manager.update_controldict(cd_content, {"timestepControl": schedule_fo})
+                        control_dict.write_text(new_content)
+                        log_lines.append(f"Injected timestepControl coded functionObject ({len(time_schedule)} segments)")
+                        
+                        if log_callback:
+                            await log_callback(run_id, {"type": "log", "step": "Apply Settings", "line": f"Injected timestep schedule ({len(time_schedule)} segments)"})
 
             return True, "Settings applied"
             
