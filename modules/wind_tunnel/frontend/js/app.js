@@ -12,6 +12,11 @@ class App {
         this.maxLogLines = 100;
         this.runsData = [];
 
+        // Courant number tracking
+        this.courantHistory = [];
+        this.courantMaxHistory = [];
+        this.courantWindowSize = 20;
+
         // Simulation timing
         this.simStartTime = null;
         this.simEndTime = null;
@@ -146,7 +151,8 @@ class App {
                 Limits how many result folders are kept. If set to 5, only the 5 most recent time steps will be stored on disk. Set to 0 to keep all results (caution: this can use a lot of disk space!).
             `,
             'wall-type': `
-                <strong>Wall Boundary Type</strong><br><br>
+                <strong>Wall Boundary Type (Tunnel Walls)</strong><br><br>
+                Controls the boundary condition on the <strong>tunnel walls</strong> (top, bottom, sides).<br><br>
                 - <strong>Slip:</strong> Frictionless wall. Air flows perfectly along the surface.<br>
                 - <strong>No-Slip:</strong> Realistic wall with friction. Air speed is zero exactly at the surface.<br>
                 - <strong>Partial Slip:</strong> Adjustable friction. Use the slider to set how much slip to allow (0% = no-slip, 100% = full slip).<br>
@@ -154,11 +160,39 @@ class App {
             `,
             'wall-slip': `
                 <strong>Wall Slip Percentage</strong><br><br>
-                Controls how much the wall allows the fluid to slide along it.<br>
+                Controls how much the tunnel wall allows the fluid to slide along it.<br>
                 - <strong>0%:</strong> No-slip (zero velocity at wall, maximum friction)<br>
                 - <strong>50%:</strong> Half slip (intermediate friction)<br>
                 - <strong>100%:</strong> Full slip (frictionless wall)<br><br>
                 This uses OpenFOAM's partialSlip boundary condition.
+            `,
+            'model-surface-type': `
+                <strong>Model Surface Condition</strong><br><br>
+                Controls the boundary condition on the <strong>model/object surface</strong> inside the wind tunnel.<br><br>
+                - <strong>No-Slip:</strong> Realistic wall with friction (default). Air speed is zero at the surface. Use this for accurate force prediction.<br>
+                - <strong>Slip:</strong> Frictionless surface. Useful for initial testing or inviscid analysis.<br>
+                - <strong>Partial Slip:</strong> Adjustable friction between the model and the air.<br>
+                - <strong>Wall Functions:</strong> Uses wall functions for the boundary layer.
+            `,
+            'model-slip': `
+                <strong>Model Slip Percentage</strong><br><br>
+                Controls how much the model surface allows the fluid to slide along it.<br>
+                - <strong>0%:</strong> No-slip (zero velocity at surface, maximum friction)<br>
+                - <strong>50%:</strong> Half slip (intermediate friction)<br>
+                - <strong>100%:</strong> Full slip (frictionless surface)<br><br>
+                This uses OpenFOAM's partialSlip boundary condition.
+            `,
+            'ref-area': `
+                <strong>Reference / Frontal Area</strong><br><br>
+                The projected frontal area of your model (in m²). This is used to calculate aerodynamic coefficients (Cd, Cl).<br><br>
+                <strong>How to measure:</strong> Project your model onto a plane perpendicular to the flow direction and measure the area.<br><br>
+                For a pinewood derby car, this might be around 0.001-0.003 m² (roughly 3-5 cm² cross-section).<br>
+                For a full-size car, typically 1.5-2.5 m².
+            `,
+            'ref-length': `
+                <strong>Reference Length</strong><br><br>
+                A characteristic length of your model (in meters). Used for moment coefficient calculations.<br><br>
+                Common choices: wheelbase, overall length, or chord length (for airfoils).
             `,
             'relax-p': `
                 <strong>Pressure Relaxation</strong><br><br>
@@ -352,8 +386,12 @@ class App {
         const solverBtn = document.getElementById('go-to-solver-btn');
         const paraviewBtn = document.getElementById('go-to-paraview-btn');
 
-        // Mesh selector change
+        // Refresh mesh library when dropdown is clicked/opened
         if (meshSelector) {
+            meshSelector.addEventListener('mousedown', () => {
+                this.loadMeshLibrary();
+            });
+
             meshSelector.addEventListener('change', () => {
                 const value = meshSelector.value;
                 const isNewMesh = value === '__NEW_MESH__';
@@ -419,7 +457,9 @@ class App {
                 }
             };
             solverSelect.addEventListener('change', updateSolverDependentUI);
-            // Initial state
+            // Always apply correct UI for the current solver value on init.
+            // loadSolverConfig will dispatch 'change' if saved config exists;
+            // this call handles the fallback (fresh backend, no saved config).
             updateSolverDependentUI();
         }
 
@@ -432,6 +472,15 @@ class App {
             });
             // Initial state
             maxCoGroup.style.display = adjustTs.checked ? 'flex' : 'none';
+        }
+
+        // Min Delta T checkbox handler
+        const enableMinDt = document.getElementById('enable-min-delta-t');
+        const minDtInput = document.getElementById('min-delta-t');
+        if (enableMinDt && minDtInput) {
+            enableMinDt.addEventListener('change', () => {
+                minDtInput.disabled = !enableMinDt.checked;
+            });
         }
 
         // End Time change handler - update schedule widget's total time
@@ -462,6 +511,26 @@ class App {
         if (wallSlipFraction && wallSlipValue) {
             wallSlipFraction.addEventListener('input', () => {
                 wallSlipValue.textContent = `${wallSlipFraction.value}%`;
+            });
+        }
+
+        // Model surface type handler for partial slip slider
+        const modelTypeSelect = document.getElementById('model-surface-type');
+        const modelSlipGroup = document.getElementById('model-slip-group');
+        const modelSlipFraction = document.getElementById('model-slip-fraction');
+        const modelSlipValue = document.getElementById('model-slip-value');
+
+        if (modelTypeSelect && modelSlipGroup) {
+            modelTypeSelect.addEventListener('change', () => {
+                modelSlipGroup.style.display = modelTypeSelect.value === 'partialSlip' ? 'block' : 'none';
+            });
+            // Initial state
+            modelSlipGroup.style.display = modelTypeSelect.value === 'partialSlip' ? 'block' : 'none';
+        }
+
+        if (modelSlipFraction && modelSlipValue) {
+            modelSlipFraction.addEventListener('input', () => {
+                modelSlipValue.textContent = `${modelSlipFraction.value}%`;
             });
         }
 
@@ -661,6 +730,7 @@ class App {
         msg += `Write Interval: ${solver.write_interval || '--'}s\n`;
         msg += `Inlet Velocity: ${JSON.stringify(solver.inlet_velocity || [10, 0, 0])} m/s\n`;
         msg += `Wall Type: ${solver.wall_type || 'noSlip'}\n`;
+        msg += `Model Surface: ${solver.model_surface_type || 'noSlip'}\n`;
         msg += `Turbulence Model: ${solver.turbulence_model || 'kOmegaSST'}\n`;
         msg += `Parallel: ${solver.parallel ? `Yes (${solver.num_cores} cores)` : 'No'}\n`;
         msg += `Relaxation U: ${solver.relax_u || '--'}\n`;
@@ -799,12 +869,16 @@ class App {
             const checkMeshBtn = document.getElementById('check-mesh-btn');
             checkMeshBtn.onclick = () => this.checkMesh();
 
-            // Load performance data if complete
+            // Performance tab is always visible — show empty state when run isn't complete
+            document.getElementById('performance-tab-btn').style.display = 'flex';
             if (details.status === 'completed' || details.status === 'success') {
-                document.getElementById('performance-tab-btn').style.display = 'flex';
                 this.loadPerformanceData();
             } else {
-                document.getElementById('performance-tab-btn').style.display = 'none';
+                // Make sure the empty state is visible and data is hidden
+                const perfEmpty = document.getElementById('performance-empty');
+                const perfData = document.getElementById('performance-data');
+                if (perfEmpty) perfEmpty.style.display = 'block';
+                if (perfData) perfData.style.display = 'none';
             }
 
             // Update ParaView Helper tab with run data
@@ -829,10 +903,18 @@ class App {
             const progressTime = document.getElementById('progress-time');
             const progressIter = document.getElementById('progress-iter');
             const progressEta = document.getElementById('progress-eta');
+            const progressStep = document.getElementById('progress-step');
+            const progressCourant = document.getElementById('progress-courant');
             if (progressFill) progressFill.style.width = '0%';
             if (progressTime) progressTime.textContent = 'Time: 0m 0s';
             if (progressIter) progressIter.textContent = 'SimTime: 0';
             if (progressEta) progressEta.textContent = 'ETA: calculating...';
+            if (progressStep) progressStep.textContent = 'Initializing...';
+            if (progressCourant) { progressCourant.style.display = 'none'; progressCourant.textContent = 'Co: --'; }
+            const progressDeltaT = document.getElementById('progress-delta-t');
+            if (progressDeltaT) { progressDeltaT.style.display = 'none'; progressDeltaT.textContent = 'ΔT: --'; }
+            this.courantHistory = [];
+            this.courantMaxHistory = [];
 
             // Reset storage display
             const currentStorage = document.getElementById('current-storage');
@@ -989,6 +1071,73 @@ class App {
         if (stopBtn) {
             stopBtn.addEventListener('click', () => this.stopSimulation());
         }
+
+        const viewResultsBtn = document.getElementById('view-results-btn');
+        if (viewResultsBtn) {
+            viewResultsBtn.addEventListener('click', () => {
+                // Navigate to performance tab and load data
+                document.querySelector('[data-tab="performance"]')?.click();
+                this.loadPerformanceData(true);
+            });
+        }
+
+        const autoCalcBtn = document.getElementById('auto-calc-ref-btn');
+        if (autoCalcBtn) {
+            autoCalcBtn.addEventListener('click', async () => {
+                if (!this.currentRunId) {
+                    alert('Please select a run first');
+                    return;
+                }
+
+                const statusDiv = document.getElementById('ref-calc-status');
+                autoCalcBtn.disabled = true;
+                autoCalcBtn.textContent = '⏳ Calculating...';
+
+                if (statusDiv) {
+                    statusDiv.style.display = 'block';
+                    statusDiv.style.background = 'rgba(0,150,255,0.1)';
+                    statusDiv.style.border = '1px solid rgba(0,150,255,0.3)';
+                    statusDiv.textContent = 'Reading polyMesh and projecting faces...';
+                }
+
+                try {
+                    const result = await API.getRefValues(this.currentRunId);
+
+                    if (result.error) {
+                        if (statusDiv) {
+                            statusDiv.style.background = 'rgba(255,50,50,0.1)';
+                            statusDiv.style.border = '1px solid rgba(255,50,50,0.3)';
+                            statusDiv.textContent = `Error: ${result.error}`;
+                        }
+                    } else {
+                        // Populate the inputs
+                        const areaInput = document.getElementById('ref-area');
+                        const lengthInput = document.getElementById('ref-length');
+                        if (areaInput) areaInput.value = result.ref_area;
+                        if (lengthInput) lengthInput.value = result.ref_length;
+
+                        if (statusDiv) {
+                            statusDiv.style.background = 'rgba(0,200,100,0.1)';
+                            statusDiv.style.border = '1px solid rgba(0,200,100,0.3)';
+                            const bbox = result.bbox_min && result.bbox_max
+                                ? `BBox: (${result.bbox_min.map(v => v.toFixed(4)).join(', ')}) → (${result.bbox_max.map(v => v.toFixed(4)).join(', ')})`
+                                : '';
+                            statusDiv.innerHTML = `✅ <strong>Area:</strong> ${result.ref_area} m² | <strong>Length:</strong> ${result.ref_length} m<br>` +
+                                `<span style="font-size: 0.85em; color: var(--text-muted);">Method: ${result.method} | ${result.num_faces} faces, ${result.num_vertices} vertices | Patches: ${result.patches_used?.join(', ')}<br>${bbox}</span>`;
+                        }
+                    }
+                } catch (e) {
+                    if (statusDiv) {
+                        statusDiv.style.background = 'rgba(255,50,50,0.1)';
+                        statusDiv.style.border = '1px solid rgba(255,50,50,0.3)';
+                        statusDiv.textContent = `Error: ${e.message}`;
+                    }
+                }
+
+                autoCalcBtn.disabled = false;
+                autoCalcBtn.textContent = '🔄 Auto-Calculate from Mesh';
+            });
+        }
     }
 
     getSolverSettings() {
@@ -1009,8 +1158,13 @@ class App {
                 parseFloat(document.getElementById('inlet-uz')?.value) || 0
             ],
             outlet_pressure: parseFloat(document.getElementById('outlet-pressure')?.value) || 0,
+            up_direction: document.getElementById('up-direction')?.value || 'z-up',
             wall_type: document.getElementById('wall-type')?.value || 'noSlip',
             wall_slip_fraction: parseInt(document.getElementById('wall-slip-fraction')?.value || 50) / 100,
+            model_surface_type: document.getElementById('model-surface-type')?.value || 'noSlip',
+            model_slip_fraction: parseInt(document.getElementById('model-slip-fraction')?.value || 50) / 100,
+            ref_area: parseFloat(document.getElementById('ref-area')?.value) || 1.0,
+            ref_length: parseFloat(document.getElementById('ref-length')?.value) || 1.0,
             parallel: document.getElementById('enable-parallel')?.checked || false,
             num_cores: parseInt(document.getElementById('num-cores')?.value) || 4,
             relax_p: parseFloat(document.getElementById('relax-p')?.value) || 0.15,
@@ -1018,6 +1172,8 @@ class App {
             adjust_timestep: document.getElementById('adjust-timestep')?.checked || false,
             max_co: parseFloat(document.getElementById('max-co')?.value) || 0.5,
             max_delta_t: parseFloat(document.getElementById('max-delta-t')?.value) || 1e-4,
+            enable_min_delta_t: document.getElementById('enable-min-delta-t')?.checked || false,
+            min_delta_t: parseFloat(document.getElementById('min-delta-t')?.value) || 1e-6,
             n_inner_correctors: parseInt(document.getElementById('n-correctors')?.value) || 2,
             n_non_ortho_correctors: parseInt(document.getElementById('n-non-ortho')?.value) || 0,
             res_p: parseFloat(document.getElementById('res-p')?.value) || 1e-4,
@@ -1071,7 +1227,22 @@ class App {
             setVal('inlet-uz', config.inlet_velocity[2]);
         }
         setVal('outlet-pressure', config.outlet_pressure);
+        setVal('up-direction', config.up_direction || 'z-up');
         setVal('wall-type', config.wall_type);
+        setVal('model-surface-type', config.model_surface_type);
+        setVal('ref-area', config.ref_area);
+        setVal('ref-length', config.ref_length);
+        if (config.model_slip_fraction !== undefined) {
+            const msfVal = Math.round(config.model_slip_fraction * 100);
+            setVal('model-slip-fraction', msfVal);
+            const modelSlipValueEl = document.getElementById('model-slip-value');
+            if (modelSlipValueEl) modelSlipValueEl.textContent = `${msfVal}%`;
+        }
+        // Update model surface type visibility
+        const modelSlipGroupEl = document.getElementById('model-slip-group');
+        if (modelSlipGroupEl) {
+            modelSlipGroupEl.style.display = config.model_surface_type === 'partialSlip' ? 'block' : 'none';
+        }
 
         // Parallel
         setChecked('enable-parallel', config.parallel);
@@ -1092,6 +1263,11 @@ class App {
         setChecked('adjust-timestep', config.adjust_timestep);
         setVal('max-co', config.max_co);
         setVal('max-delta-t', config.max_delta_t);
+        setChecked('enable-min-delta-t', config.enable_min_delta_t);
+        setVal('min-delta-t', config.min_delta_t);
+        // Update min-delta-t input disabled state
+        const minDtInput = document.getElementById('min-delta-t');
+        if (minDtInput) minDtInput.disabled = !config.enable_min_delta_t;
 
         // Timestep strategy: schedule vs simple
         if (config.time_schedule && config.time_schedule.length > 0) {
@@ -1243,6 +1419,23 @@ class App {
         runBtn.disabled = true;
         stopBtn.disabled = false;
         progressContainer.style.display = 'block';
+
+        // Hide any previous results button
+        const simResultsContainer = document.getElementById('sim-results-btn-container');
+        if (simResultsContainer) simResultsContainer.style.display = 'none';
+
+        // Reset progress phase and Courant
+        const progressStep = document.getElementById('progress-step');
+        const progressCourant = document.getElementById('progress-courant');
+        if (progressStep) progressStep.textContent = '⚙️ Initializing...';
+        if (progressCourant) { progressCourant.style.display = 'none'; progressCourant.textContent = 'Co: --'; }
+        const progressDeltaT2 = document.getElementById('progress-delta-t');
+        if (progressDeltaT2) { progressDeltaT2.style.display = 'none'; progressDeltaT2.textContent = 'ΔT: --'; }
+        this.courantHistory = [];
+        this.courantMaxHistory = [];
+        this._lastProgressPct = 0;       // Reset so new sim bar starts from 0
+        this._highestSeenSimTime = 0;    // Reset high-water mark for Time= parser
+
 
         const solverSettings = this.getSolverSettings();
         const materialSettings = this.getMaterialSettings();
@@ -1404,51 +1597,154 @@ class App {
         // Set up callback handlers (like Propeller GUI)
         this.ws.onLog((data) => {
             this.addLog(data.line);
+            const line = data.line;
 
-            // Parse simulation time (format: "Time = X.XXX" or "Time = X")
-            const timeMatch = data.line.match(/Time = ([\d.]+)/);
-            if (timeMatch) {
-                const simTime = parseFloat(timeMatch[1]);
-                this.currentSimTime = simTime;
-                document.getElementById('progress-iter').textContent = `SimTime: ${simTime.toFixed(4)}`;
+            // === Progress Phase Detection ===
+            const progressStep = document.getElementById('progress-step');
+            if (progressStep) {
+                if (line.includes('[WORKFLOW] Applying settings') || line.includes('[SETTINGS]')) {
+                    progressStep.textContent = '⚙️ Configuring...';
+                } else if (line.includes('[SOLVER] Decomposing') || line.includes('[DECOMPOSE] Running')) {
+                    progressStep.textContent = '📦 Decomposing...';
+                } else if (line.match(/Compiling.*\.C/i) || line.includes('wmake')) {
+                    progressStep.textContent = '🔨 Compiling...';
+                } else if (line.includes('[SOLVER] Running') || line.match(/^Time = /)) {
+                    progressStep.textContent = '🔄 Solving...';
+                } else if (line.includes('[SOLVER] Reconstructing') || line.includes('[RECONSTRUCT]')) {
+                    progressStep.textContent = '📦 Reconstructing...';
+                } else if (line.includes('[ANALYSIS]')) {
+                    progressStep.textContent = '📊 Analyzing...';
+                } else if (line.includes('failed') || line.includes('ERROR')) {
+                    progressStep.textContent = '❌ Error';
+                }
+            }
 
-                // Update progress bar and ETA
-                const endTime = parseFloat(document.getElementById('end-time').value);
-                if (endTime > 0 && simTime > 0) {
-                    const percent = Math.min(100, (simTime / endTime) * 100);
-                    document.getElementById('progress-fill').style.width = `${percent}%`;
-
-                    // Calculate ETA based on elapsed real time and simulation progress
-                    if (this.simStartTime && percent > 0) {
-                        const elapsedMs = Date.now() - this.simStartTime;
-                        const elapsedSecs = elapsedMs / 1000;
-                        const totalEstimatedSecs = elapsedSecs * 100 / percent;
-                        const etaSecs = Math.max(0, totalEstimatedSecs - elapsedSecs);
-
-                        // Format ETA
-                        let etaText;
-                        if (etaSecs < 60) {
-                            etaText = `${Math.round(etaSecs)}s`;
-                        } else if (etaSecs < 3600) {
-                            const mins = Math.floor(etaSecs / 60);
-                            const secs = Math.round(etaSecs % 60);
-                            etaText = `${mins}m ${secs}s`;
-                        } else {
-                            const hours = Math.floor(etaSecs / 3600);
-                            const mins = Math.floor((etaSecs % 3600) / 60);
-                            etaText = `${hours}h ${mins}m`;
-                        }
-                        document.getElementById('progress-eta').textContent = `ETA: ${etaText}`;
+            // === Courant Number Parsing ===
+            // OpenFOAM prints: "Courant Number mean: 0.123 max: 0.456"
+            const coMatch = line.match(/Courant Number mean:\s*([\d.e+-]+)\s*max:\s*([\d.e+-]+)/);
+            if (coMatch) {
+                const coMean = parseFloat(coMatch[1]);
+                const coMax = parseFloat(coMatch[2]);
+                this.courantHistory.push(coMean);
+                this.courantMaxHistory.push(coMax);
+                if (this.courantHistory.length > this.courantWindowSize) {
+                    this.courantHistory.shift();
+                    this.courantMaxHistory.shift();
+                }
+                // Calculate rolling averages
+                const avgMean = this.courantHistory.reduce((a, b) => a + b, 0) / this.courantHistory.length;
+                const avgMax = this.courantMaxHistory.reduce((a, b) => a + b, 0) / this.courantMaxHistory.length;
+                const courantEl = document.getElementById('progress-courant');
+                if (courantEl) {
+                    courantEl.style.display = '';
+                    courantEl.textContent = `Co: ${avgMean.toFixed(3)} / ${avgMax.toFixed(3)}`;
+                    // Color code: green < 0.5, yellow < 1.0, red >= 1.0
+                    if (avgMax >= 1.0) {
+                        courantEl.style.color = 'var(--error, #ff4444)';
+                    } else if (avgMax >= 0.5) {
+                        courantEl.style.color = 'var(--warning, #ffaa00)';
+                    } else {
+                        courantEl.style.color = 'var(--success, #44ff44)';
                     }
                 }
             }
+
+            // === DeltaT Parsing ===
+            // OpenFOAM prints: "deltaT = 1.234e-05"
+            const dtMatch = line.match(/deltaT = ([\d.e+-]+)/);
+            if (dtMatch) {
+                const dt = parseFloat(dtMatch[1]);
+                const dtEl = document.getElementById('progress-delta-t');
+                if (dtEl) {
+                    dtEl.style.display = '';
+                    dtEl.textContent = `ΔT: ${dt.toExponential(2)}`;
+                }
+            }
+
+            // === Simulation Time Parsing ===
+            // IMPORTANT: Anchored to start of line so 'ExecutionTime = 0.45' is NOT matched.
+            const timeMatch = line.match(/^Time = ([\d.eE+\-]+)/);
+            if (timeMatch) {
+                const simTime = parseFloat(timeMatch[1]);
+                // Guard against non-finite or negative time values (skip if bad)
+                if (!isFinite(simTime) || simTime < 0) return;
+
+                // ── Monotonic high-water mark ──────────────────────────────────────────
+                // If this Time value is LESS than the highest we've ever seen, it came
+                // from a replayed log (out-of-order). Skip silently.
+                if (simTime < (this._highestSeenSimTime || 0)) return;
+                this._highestSeenSimTime = simTime;
+                // ──────────────────────────────────────────────────────────────────────
+
+                this.currentSimTime = simTime;
+                const now = Date.now();
+                if (!this.lastUiUpdate || now - this.lastUiUpdate > 300) {
+                    this.lastUiUpdate = now;
+
+                    // Parse end time from input - if the run's config hasn't loaded, use stored value
+                    const endTimeRaw = parseFloat(document.getElementById('end-time')?.value);
+                    const endTime = isFinite(endTimeRaw) && endTimeRaw > 0 ? endTimeRaw
+                        : (this._lastKnownEndTime || null);
+
+                    if (endTime && endTime > 0) {
+                        this._lastKnownEndTime = endTime;
+                        const percent = Math.min(100, Math.max(0, (simTime / endTime) * 100));
+
+                        document.getElementById('progress-iter').textContent = `SimTime: ${simTime.toFixed(4)} / ${endTime}`;
+                        // Monotonically increasing — only move bar forward
+                        if (percent >= (this._lastProgressPct || 0)) {
+                            this._lastProgressPct = percent;
+                            document.getElementById('progress-fill').style.width = `${percent}%`;
+                        }
+
+                        // Calculate ETA based on elapsed real time and simulation progress
+                        if (this.simStartTime && percent > 0.1) {
+                            const elapsedMs = Date.now() - this.simStartTime;
+                            const elapsedSecs = elapsedMs / 1000;
+                            const totalEstimatedSecs = elapsedSecs * 100 / percent;
+                            const etaSecs = Math.max(0, totalEstimatedSecs - elapsedSecs);
+
+                            // Format ETA
+                            let etaText;
+                            if (etaSecs < 60) {
+                                etaText = `${Math.round(etaSecs)}s`;
+                            } else if (etaSecs < 3600) {
+                                const mins = Math.floor(etaSecs / 60);
+                                const secs = Math.round(etaSecs % 60);
+                                etaText = `${mins}m ${secs}s`;
+                            } else {
+                                const hours = Math.floor(etaSecs / 3600);
+                                const mins = Math.floor((etaSecs % 3600) / 60);
+                                etaText = `${hours}h ${mins}m`;
+                            }
+                            document.getElementById('progress-eta').textContent = `ETA: ${etaText}`;
+                        }
+                    } else {
+                        // No endTime known — at least show the time counter
+                        document.getElementById('progress-iter').textContent = `SimTime: ${simTime.toFixed(4)}`;
+                    }
+                }
+            }
+
         });
 
+        // Track last shown progress so the bar only ever moves forward
+        this._lastProgressPct = this._lastProgressPct || 0;
+
         this.ws.onProgress((data) => {
-            if (data.progress !== undefined) {
-                document.getElementById('progress-fill').style.width = `${data.progress}%`;
+            const stepText = document.getElementById('progress-step')?.textContent || '';
+            const isSolving = stepText.includes('Solving');
+
+            if (data.progress !== undefined && !isSolving) {
+                const pct = parseFloat(data.progress);
+                // Monotonically increasing: only advance, never go back
+                if (!isNaN(pct) && pct >= this._lastProgressPct) {
+                    this._lastProgressPct = pct;
+                    document.getElementById('progress-fill').style.width = `${pct}%`;
+                }
+                // lower values are silently ignored
             }
-            if (data.iteration !== undefined) {
+            if (data.iteration !== undefined && !isSolving) {
                 document.getElementById('progress-iter').textContent = `Iter: ${data.iteration}`;
             }
         });
@@ -1461,7 +1757,13 @@ class App {
             document.getElementById('stop-simulation-btn').disabled = true;
             document.getElementById('progress-fill').style.width = '100%';
             document.getElementById('progress-eta').textContent = 'Done';
+            const stepEl = document.getElementById('progress-step');
+            if (stepEl) stepEl.textContent = '✅ Complete';
             this.loadRuns();
+
+            // Show View Results button
+            const resultsContainer = document.getElementById('sim-results-btn-container');
+            if (resultsContainer) resultsContainer.style.display = 'block';
         });
 
         this.ws.onError((data) => {
@@ -1470,6 +1772,8 @@ class App {
             this.simStartTime = null;
             document.getElementById('run-simulation-btn').disabled = false;
             document.getElementById('stop-simulation-btn').disabled = true;
+            const errStepEl = document.getElementById('progress-step');
+            if (errStepEl) errStepEl.textContent = '❌ Error';
         });
 
         this.ws.onConnection((status) => {
@@ -1749,6 +2053,7 @@ Write Control: ${settings.write_control}
 Write Interval: ${settings.write_interval}
 Inlet Velocity: (${settings.inlet_velocity.join(', ')}) m/s
 Wall Type: ${settings.wall_type}
+Model Surface: ${settings.model_surface_type}
 Parallel: ${settings.parallel ? 'Yes (' + settings.num_cores + ' cores)' : 'No'}
 Relaxation P: ${settings.relax_p}, U: ${settings.relax_u}
 
@@ -1942,6 +2247,10 @@ ${logOutput.textContent}`;
         } catch (e) {
             console.log('Failed to load server defaults:', e);
         }
+
+        // Re-sync solver-dependent UI after defaults change the solver dropdown
+        const solverEl = document.getElementById('solver-select');
+        if (solverEl) solverEl.dispatchEvent(new Event('change'));
     }
 
     async saveDefaults() {
@@ -2017,6 +2326,11 @@ ${logOutput.textContent}`;
         const timeWindowControls = document.getElementById('time-window-controls');
         const excludeGroup = document.getElementById('exclude-fraction-group');
 
+        // Debounce helper for inputs that trigger API calls
+        const debounce = (fn, ms) => { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); }; };
+        const autoRefresh = debounce(() => this.loadPerformanceData(false), 600);
+
+        // Mode selector — always re-fetch, all modes supported live
         if (modeSelect) {
             modeSelect.addEventListener('change', () => {
                 const mode = modeSelect.value;
@@ -2031,10 +2345,8 @@ ${logOutput.textContent}`;
                     excludeGroup.style.display = (mode === 'average') ? 'block' : 'none';
                 }
 
-                // Auto-refresh when mode changes (except 'saved' which is just reading file)
-                if (mode !== 'saved') {
-                    this.loadPerformanceData(false);
-                }
+                // Always re-fetch — every mode change should update the data
+                this.loadPerformanceData(false);
             });
 
             // Initialize visibility based on current mode
@@ -2047,7 +2359,37 @@ ${logOutput.textContent}`;
             }
         }
 
-        // Setup dual-handle range slider
+        // Exclude fraction input — debounced auto-refresh
+        const excludeInput = document.getElementById('analysis-exclude-fraction');
+        if (excludeInput) {
+            excludeInput.addEventListener('input', autoRefresh);
+            excludeInput.addEventListener('change', () => this.loadPerformanceData(false));
+        }
+
+        // Custom time window inputs — debounced auto-refresh
+        const startTimeInput = document.getElementById('analysis-start-time');
+        const endTimeInput = document.getElementById('analysis-end-time');
+        if (startTimeInput) {
+            startTimeInput.addEventListener('change', () => {
+                if (modeSelect?.value === 'window') this.loadPerformanceData(false);
+            });
+        }
+        if (endTimeInput) {
+            endTimeInput.addEventListener('change', () => {
+                if (modeSelect?.value === 'window') this.loadPerformanceData(false);
+            });
+        }
+
+        // Time window sliders — debounced auto-refresh on release (mouseup/touchend)
+        const startSliderEl = document.getElementById('analysis-start-time-slider');
+        const endSliderEl = document.getElementById('analysis-end-time-slider');
+        const sliderRefresh = debounce(() => {
+            if (modeSelect?.value === 'window') this.loadPerformanceData(false);
+        }, 400);
+        if (startSliderEl) startSliderEl.addEventListener('input', sliderRefresh);
+        if (endSliderEl) endSliderEl.addEventListener('input', sliderRefresh);
+
+        // Setup dual-handle range slider (visual only — no refresh logic inside)
         this.setupTimeRangeSlider();
 
         // Attach display settings listeners immediately (static HTML, always available)
@@ -2100,6 +2442,39 @@ ${logOutput.textContent}`;
 
         startSlider.style.pointerEvents = 'auto';
         endSlider.style.pointerEvents = 'auto';
+
+        // ── Hover-based z-index ─────────────────────────────────────────────────
+        // We update which slider is on top during MOUSEMOVE (hover), not mousedown.
+        // This means by the time the user actually clicks, the correct slider thumb
+        // is already on top, so the browser's native snap always goes to the right handle.
+        // A drag-lock prevents the z-index from switching mid-drag.
+        let _sliderDragging = false;
+        const sliderContainer = startSlider.parentElement;
+
+        const pickCloserSlider = (clientX) => {
+            const rect = sliderContainer.getBoundingClientRect();
+            const pct = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+            const distStart = Math.abs(pct - parseFloat(startSlider.value));
+            const distEnd = Math.abs(pct - parseFloat(endSlider.value));
+            if (distStart <= distEnd) {
+                startSlider.style.zIndex = '4';
+                endSlider.style.zIndex = '2';
+            } else {
+                endSlider.style.zIndex = '4';
+                startSlider.style.zIndex = '2';
+            }
+        };
+
+        if (sliderContainer) {
+            // Set z-index on every hover movement (before any click)
+            sliderContainer.addEventListener('mousemove', e => {
+                if (!_sliderDragging) pickCloserSlider(e.clientX);
+            });
+            // Lock z-index during drag so it doesn't switch mid-drag
+            sliderContainer.addEventListener('mousedown', () => { _sliderDragging = true; });
+        }
+        // Release drag lock on mouseup anywhere on the page
+        document.addEventListener('mouseup', () => { _sliderDragging = false; });
 
         startSlider.addEventListener('input', () => {
             if (parseFloat(startSlider.value) > parseFloat(endSlider.value)) {
@@ -2174,48 +2549,172 @@ ${logOutput.textContent}`;
             const metrics = data.metrics || {};
             const fmt = (typeof UnitFormatter !== 'undefined') ? UnitFormatter : null;
 
-            const setVal = (id, val, unit = '') => {
-                const el = document.getElementById(id);
-                if (!el) return;
+            // ================================================================
+            // Read current UI settings — these always take priority over cache
+            // ================================================================
+            const refArea = parseFloat(document.getElementById('ref-area')?.value) || 1.0;
+            const refLength = parseFloat(document.getElementById('ref-length')?.value) || 1.0;
+            const upDir = document.getElementById('up-direction')?.value || 'z-up';
+            // Read inlet velocity vector and compute total speed magnitude
+            const ux = parseFloat(document.getElementById('inlet-ux')?.value) || 0;
+            const uy = parseFloat(document.getElementById('inlet-uy')?.value) || 0;
+            const uz = parseFloat(document.getElementById('inlet-uz')?.value) || 0;
+            const U = Math.sqrt(ux * ux + uy * uy + uz * uz) || 10.0;
+            const rho = parseFloat(document.getElementById('density')?.value) || 1.225;
 
-                if (val === undefined || val === null || (typeof val === 'number' && isNaN(val))) {
-                    el.textContent = '-';
-                } else if (typeof val === 'number' && fmt) {
-                    if (unit === 'N') {
-                        el.textContent = fmt.formatForce(val);
-                    } else if (unit === 'm²') {
-                        el.textContent = fmt.formatArea(val);
-                    } else if (unit) {
-                        el.textContent = fmt.format(val, unit);
-                    } else {
-                        el.textContent = fmt.formatCoefficient(val);
-                    }
-                } else if (typeof val === 'number') {
-                    el.textContent = val.toFixed(4) + (unit ? ' ' + unit : '');
-                } else {
-                    el.textContent = val + (unit ? ' ' + unit : '');
-                }
+            // ================================================================
+            // Build wind unit vector and orthogonal lift/side unit vectors
+            // These are derived from the actual inlet velocity, so -X wind
+            // is handled correctly via dot-product projection.
+            // ================================================================
+            const axisNames = ['X', 'Y', 'Z'];
+
+            // Wind unit vector (direction wind is flowing, not coming from)
+            const windVec = [ux, uy, uz];
+            const windMag = U || 1.0;  // U already = |windVec|
+            const windHat = windVec.map(v => v / windMag);  // unit vector
+
+            // Determine up unit vector from setting
+            let upHat;
+            if (upDir === 'y-up') {
+                upHat = [0, 1, 0];
+            } else {
+                upHat = [0, 0, 1];  // z-up default
+            }
+
+            // Side = windHat × upHat  (right-hand rule perpendicular to both)
+            const crossProduct = (a, b) => [
+                a[1] * b[2] - a[2] * b[1],
+                a[2] * b[0] - a[0] * b[2],
+                a[0] * b[1] - a[1] * b[0]
+            ];
+            const normalize = v => { const m = Math.sqrt(v[0] ** 2 + v[1] ** 2 + v[2] ** 2); return m > 0 ? v.map(x => x / m) : v; };
+            const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+
+            const sideHat = normalize(crossProduct(windHat, upHat));
+            // Recompute true lift axis orthogonal to both wind and side
+            const liftHat = normalize(crossProduct(sideHat, windHat));
+
+            // Human-readable axis labels (which axis is most aligned with each)
+            const dominantAxis = hat => ['X', 'Y', 'Z'][hat.reduce((mi, v, i, a) => Math.abs(v) > Math.abs(a[mi]) ? i : mi, 0)];
+            const signedLabel = hat => {
+                const idx = hat.reduce((mi, v, i, a) => Math.abs(v) > Math.abs(a[mi]) ? i : mi, 0);
+                return (hat[idx] < 0 ? '-' : '') + ['X', 'Y', 'Z'][idx];
             };
 
-            setVal('perf-cd', metrics.cd ?? metrics.cd_calc);
-            setVal('perf-cl', metrics.cl ?? metrics.cl_calc);
-            setVal('perf-drag', metrics.drag_force, 'N');
-            setVal('perf-lift', metrics.lift_force, 'N');
+            const dragLabel = signedLabel(windHat);
+            const liftLabel = signedLabel(liftHat);
+            const sideLabel = signedLabel(sideHat);
 
-            const drag = metrics.drag_force || 0;
-            const lift = metrics.lift_force || 0;
-            const ld = (drag !== 0) ? (lift / drag) : 0;
-            setVal('perf-ld', ld);
+            // ================================================================
+            // Extract raw forces from backend data
+            // ================================================================
+            const fx = metrics.fx ?? 0;
+            const fy = metrics.fy ?? 0;
+            const fz = metrics.fz ?? 0;
+            const mx = metrics.mx ?? 0;
+            const my = metrics.my ?? 0;
+            const mz = metrics.mz ?? 0;
+            const forceVec = [fx, fy, fz];
 
-            setVal('perf-area', data.config?.ref_area ?? data.config?.a_ref ?? 1.0, 'm²');
+            // Project forces onto each physical axis via dot product
+            // This correctly handles any wind direction including -X
+            const dragForce = dot(forceVec, windHat);   // along wind direction
+            const liftForce = dot(forceVec, liftHat);   // along up direction
+            const sideForce = dot(forceVec, sideHat);   // lateral
 
+            // ================================================================
+            // Compute coefficients using UI values (always fresh)
+            // ================================================================
+            const q = 0.5 * rho * U * U;
+            const denominator = q * refArea;
+            const cd = denominator > 0 ? dragForce / denominator : 0;
+            const cl = denominator > 0 ? liftForce / denominator : 0;
+            const cs = denominator > 0 ? sideForce / denominator : 0;
+            const ld = Math.abs(cd) > 1e-10 ? cl / cd : 0;
+
+            // ================================================================
+            // Helper: format a value
+            // ================================================================
+            const fmtForce = (v) => {
+                if (v === undefined || v === null || isNaN(v)) return '—';
+                if (fmt) return fmt.formatForce(v);
+                const abs = Math.abs(v);
+                if (abs === 0) return '0 N';
+                if (abs < 0.001) return `${(v * 1e6).toFixed(2)} μN`;
+                if (abs < 1) return `${(v * 1e3).toFixed(3)} mN`;
+                if (abs >= 1000) return `${(v / 1e3).toFixed(3)} kN`;
+                return `${v.toFixed(4)} N`;
+            };
+            const fmtCoeff = (v) => {
+                if (v === undefined || v === null || isNaN(v)) return '—';
+                return v.toFixed(5);
+            };
+            const fmtRatio = (v) => {
+                if (v === undefined || v === null || isNaN(v)) return '—';
+                return v.toFixed(4);
+            };
+            const setText = (id, text) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = text;
+            };
+
+            // ================================================================
+            // Update Settings Banner
+            // ================================================================
+            setText('perf-banner-wind', `${dragLabel} axis  (Ux=${ux}, Uy=${uy}, Uz=${uz})`);
+            setText('perf-banner-up', `${upDir === 'y-up' ? '+Y' : '+Z'} axis`);
+            setText('perf-banner-area', `${refArea.toFixed(6)} m²`);
+            setText('perf-banner-len', `${refLength.toFixed(4)} m`);
+
+            // ================================================================
+            // Update Axis Labels on force rows
+            // ================================================================
+            setText('perf-drag-label', `Drag Force (F along ${dragLabel})`);
+            setText('perf-lift-label', `Lift Force (F along ${liftLabel})`);
+            setText('perf-side-label', `Side Force (F along ${sideLabel})`);
+            setText('perf-axes-note', `— Wind: ${dragLabel}, Up: ${liftLabel}, Side: ${sideLabel}`);
+
+            // ================================================================
+            // Coefficients
+            // ================================================================
+            setText('perf-cd', fmtCoeff(cd));
+            setText('perf-cl', fmtCoeff(cl));
+            setText('perf-cs', fmtCoeff(cs));
+            setText('perf-ld', fmtRatio(ld));
+
+            // ================================================================
+            // Aero Forces (axis-mapped)
+            // ================================================================
+            setText('perf-drag', fmtForce(dragForce));
+            setText('perf-lift', fmtForce(liftForce));
+            setText('perf-side', fmtForce(sideForce));
+
+            // ================================================================
+            // Raw force components (OpenFOAM axes Fx/Fy/Fz)
+            // ================================================================
+            setText('perf-fx', fmtForce(fx));
+            setText('perf-fy', fmtForce(fy));
+            setText('perf-fz', fmtForce(fz));
+            setText('perf-mx', fmtForce(mx));
+            setText('perf-my', fmtForce(my));
+            setText('perf-mz', fmtForce(mz));
+
+            // ================================================================
+            // Time range info
+            // ================================================================
             if (timeInfo && metrics.t_start !== undefined) {
                 const iterations = metrics.iterations_analyzed || 'N/A';
-                timeInfo.textContent = `Analysis range: ${metrics.t_start?.toFixed(4)}s - ${metrics.t_end?.toFixed(4)}s (${iterations} samples)`;
+                timeInfo.textContent = `Analysis range: ${metrics.t_start?.toFixed(4)}s–${metrics.t_end?.toFixed(4)}s (${iterations} samples)`;
             }
 
             const rawEl = document.getElementById('perf-raw');
-            if (rawEl) rawEl.textContent = JSON.stringify(data, null, 2);
+            if (rawEl) {
+                rawEl.textContent = JSON.stringify({
+                    _computed: { refArea, refLength, U, rho, q, cd, cl, cs, ld, dragLabel, liftLabel, sideLabel },
+                    ...data
+                }, null, 2);
+            }
         }
     }
 
@@ -2243,10 +2742,17 @@ ${logOutput.textContent}`;
             const timeStart = parseFloat(document.getElementById('analysis-start-time')?.value || 0);
             const timeEnd = parseFloat(document.getElementById('analysis-end-time')?.value || 1);
 
-            if (forceRefresh) {
+            const refArea = parseFloat(document.getElementById('ref-area')?.value) || null;
+            const refLength = parseFloat(document.getElementById('ref-length')?.value) || null;
+
+            if (forceRefresh && mode === 'saved') {
+                // Only rerun full analysis when explicitly refreshing in 'saved' mode
+                // (this updates the cache on disk)
                 data = await API.triggerAnalysis(this.currentRunId);
             } else {
-                data = await API.getPerformance(this.currentRunId, mode, excludeFraction, timeStart, timeEnd);
+                // For all other modes (or non-forced refresh), use the current
+                // mode/window settings — this respects custom time windows, averages, etc.
+                data = await API.getPerformance(this.currentRunId, mode, excludeFraction, timeStart, timeEnd, refArea, refLength);
             }
 
             if (loading) loading.style.display = 'none';
@@ -2266,6 +2772,9 @@ ${logOutput.textContent}`;
             // Use the shared render function
             this.renderPerformanceData(data);
 
+            // Also load convergence data in parallel
+            this.loadConvergenceData();
+
         } catch (e) {
             if (loading) loading.style.display = 'none';
             if (errorDiv) {
@@ -2275,6 +2784,113 @@ ${logOutput.textContent}`;
         }
     }
 
+
+    // ==================== Convergence / Solution Quality ====================
+
+    async loadConvergenceData() {
+        if (!this.currentRunId) return;
+        try {
+            const data = await API.getConvergence(this.currentRunId);
+            if (data && data.status === 'ok') {
+                this.renderConvergenceData(data);
+            }
+        } catch (e) {
+            console.log('Convergence data not available:', e.message);
+        }
+    }
+
+    renderConvergenceData(data) {
+        const card = document.getElementById('convergence-card');
+        if (!card) return;
+        card.style.display = 'block';
+
+        const setText = (id, text) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = text;
+        };
+
+        // --- Convergence badge ---
+        const badge = document.getElementById('convergence-badge');
+        if (badge) {
+            if (data.converged) {
+                badge.textContent = '✅ Converged';
+                badge.style.background = 'rgba(34, 197, 94, 0.15)';
+                badge.style.color = '#22c55e';
+            } else {
+                // Check if partially converged (some fields low)
+                const fields = Object.values(data.fields || {});
+                const lowCount = fields.filter(f => f.final < 1e-3).length;
+                if (lowCount > fields.length / 2) {
+                    badge.textContent = '⚠️ Partially Converged';
+                    badge.style.background = 'rgba(234, 179, 8, 0.15)';
+                    badge.style.color = '#eab308';
+                } else {
+                    badge.textContent = '❌ Not Converged';
+                    badge.style.background = 'rgba(239, 68, 68, 0.15)';
+                    badge.style.color = '#ef4444';
+                }
+            }
+        }
+        setText('convergence-message',
+            `${data.convergence_message || ''} — ${data.total_iterations} iterations (${data.solver || 'unknown'})`);
+
+        // --- Residual table ---
+        const tbody = document.getElementById('residual-table-body');
+        if (tbody && data.fields) {
+            tbody.innerHTML = '';
+            // Order fields: Ux, Uy, Uz, p, then turbulence
+            const fieldOrder = ['Ux', 'Uy', 'Uz', 'p', 'k', 'omega', 'epsilon', 'nuTilda'];
+            const sortedFields = Object.keys(data.fields)
+                .sort((a, b) => {
+                    const ai = fieldOrder.indexOf(a);
+                    const bi = fieldOrder.indexOf(b);
+                    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+                });
+
+            for (const field of sortedFields) {
+                const info = data.fields[field];
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid var(--border-color)';
+
+                // Status icon and color based on final residual
+                let statusIcon, statusColor;
+                if (info.final < 1e-5) {
+                    statusIcon = '🟢'; statusColor = '#22c55e';
+                } else if (info.final < 1e-3) {
+                    statusIcon = '🟡'; statusColor = '#eab308';
+                } else {
+                    statusIcon = '🔴'; statusColor = '#ef4444';
+                }
+
+                const fmtSci = (v) => {
+                    if (v === 0) return '0';
+                    return v.toExponential(2);
+                };
+
+                tr.innerHTML = `
+                    <td style="padding: 6px 8px; font-weight: 500;">${field}</td>
+                    <td style="padding: 6px 8px; text-align: right; font-family: monospace;">${fmtSci(info.initial)}</td>
+                    <td style="padding: 6px 8px; text-align: right; font-family: monospace; color: ${statusColor};">${fmtSci(info.final)}</td>
+                    <td style="padding: 6px 8px; text-align: right; font-weight: 600;">${info.orders_dropped > 0 ? info.orders_dropped.toFixed(1) : '—'}</td>
+                    <td style="padding: 6px 8px; text-align: center;">${statusIcon}</td>
+                `;
+                tbody.appendChild(tr);
+            }
+        }
+
+        // --- Continuity ---
+        const cont = data.continuity_error || {};
+        const fmtSci = (v) => v !== null && v !== undefined ? v.toExponential(3) : '—';
+        setText('conv-cont-local', fmtSci(cont.final_local));
+        setText('conv-cont-global', fmtSci(cont.final_global));
+
+        // --- Force stability ---
+        const fs = data.force_stability || {};
+        const cdStd = fs.cd?.std;
+        const clStd = fs.cl?.std;
+        setText('conv-cd-std', cdStd !== undefined ? cdStd.toExponential(3) : '—');
+        setText('conv-cl-std', clStd !== undefined ? clStd.toExponential(3) : '—');
+    }
 
     // Update ParaView section in Performance tab
     updatePerformanceParaview() {

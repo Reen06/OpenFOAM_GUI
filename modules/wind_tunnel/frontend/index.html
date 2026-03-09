@@ -54,7 +54,7 @@
                     <span class="tab-icon">⚙️</span>
                     <span class="tab-label">Solver + Controls</span>
                 </button>
-                <button class="tab-btn" data-tab="performance" id="performance-tab-btn" style="display: none;">
+                <button class="tab-btn" data-tab="performance" id="performance-tab-btn">
                     <span class="tab-icon">📊</span>
                     <span class="tab-label">Performance</span>
                 </button>
@@ -239,6 +239,14 @@
                                         title="Set as default">⭐</button></label>
                                 <input type="number" id="outlet-pressure" value="0" step="1">
                             </div>
+                            <div class="form-group">
+                                <label>Up Direction <button class="default-btn" data-field="up-direction"
+                                        title="Set as default">⭐</button></label>
+                                <select id="up-direction">
+                                    <option value="z-up">Z-Up</option>
+                                    <option value="y-up">Y-Up</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
@@ -267,7 +275,7 @@
                                 </label>
                                 <select id="solver-select">
                                     <option value="simpleFoam">simpleFoam (steady, incompressible)</option>
-                                    <option value="pimpleFoam" selected>pimpleFoam (transient, incompressible)</option>
+                                    <option value="pimpleFoam">pimpleFoam (transient, incompressible)</option>
                                     <option value="rhoSimpleFoam">rhoSimpleFoam (steady, compressible)</option>
                                     <option value="rhoPimpleFoam">rhoPimpleFoam (transient, compressible)</option>
                                 </select>
@@ -309,7 +317,7 @@
 
                         <!-- Row 1: Timestep Strategy (hidden for steady-state) + End Time -->
                         <div class="form-row">
-                            <div class="form-group" id="timestep-strategy-group">
+                            <div class="form-group" id="timestep-strategy-group" style="display:none">
                                 <label>Timestep Strategy
                                     <button class="info-btn" data-info="timestep-strategy">?</button>
                                 </label>
@@ -331,7 +339,7 @@
 
                         <!-- Simple timestep options (hidden in schedule mode) -->
                         <div id="simple-timestep-options">
-                            <div class="form-row" id="delta-t-row">
+                            <div class="form-row" id="delta-t-row" style="display:none">
                                 <div class="form-group">
                                     <label title="Time step size. Keep small (e.g. 0.001) for transient stability.">
                                         Delta T
@@ -342,7 +350,7 @@
                                     <input type="number" id="delta-t" value="1e-5" step="1e-6">
                                 </div>
                             </div>
-                            <div class="form-row" id="adaptive-row">
+                            <div class="form-row" id="adaptive-row" style="display:none">
                                 <div class="form-group">
                                     <label>
                                         <input type="checkbox" id="adjust-timestep" checked>
@@ -362,6 +370,15 @@
                                         <button class="default-btn" data-field="max-delta-t"
                                             title="Set as default">⭐</button></label>
                                     <input type="number" id="max-delta-t" value="1e-4" step="1e-5">
+                                </div>
+                                <div class="form-group" id="min-delta-t-group">
+                                    <label>
+                                        <input type="checkbox" id="enable-min-delta-t">
+                                        Min Delta T
+                                        <button class="default-btn" data-field="enable-min-delta-t"
+                                            title="Set as default">⭐</button>
+                                    </label>
+                                    <input type="number" id="min-delta-t" value="1e-6" step="1e-7" disabled>
                                 </div>
                             </div>
                         </div>
@@ -444,11 +461,48 @@
                     </div>
 
                     <div class="card">
+                        <h4>Model Surface Condition</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>
+                                    Model Boundary Type
+                                    <button class="info-btn" data-info="model-surface-type">?</button>
+                                    <button class="default-btn" data-field="model-surface-type"
+                                        title="Set as default">⭐</button>
+                                </label>
+                                <select id="model-surface-type">
+                                    <option value="noSlip" selected>No-Slip (viscous)</option>
+                                    <option value="slip">Slip (frictionless)</option>
+                                    <option value="partialSlip">Partial Slip</option>
+                                    <option value="wallFunction">Wall Functions</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="model-slip-group" style="display: none;">
+                                <label>
+                                    Model Slip: <span id="model-slip-value">50%</span>
+                                    <button class="info-btn" data-info="model-slip">?</button>
+                                    <button class="default-btn" data-field="model-slip-fraction"
+                                        title="Set as default">⭐</button>
+                                </label>
+                                <input type="range" id="model-slip-fraction" min="0" max="100" value="50"
+                                    style="width: 100%; cursor: pointer;">
+                                <div
+                                    style="display: flex; justify-content: space-between; font-size: 0.75em; color: var(--text-muted);">
+                                    <span>0% (No-Slip)</span>
+                                    <span>100% (Full Slip)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <div class="card">
                         <h4>Solver Relaxation</h4>
                         <div class="form-row">
                             <div class="form-group">
                                 <label title="Lower values (0.2-0.5) improve stability but slow down convergence.">
                                     Pressure Relaxation
+
                                     <button class="info-btn" data-info="relax-p">?</button>
                                     <button class="default-btn" data-field="relax-p" title="Set as default">⭐</button>
                                 </label>
@@ -557,6 +611,36 @@
                         </div>
                     </div>
 
+                    <div class="card" style="margin-top: 12px;">
+                        <h4>Reference Values (for Cd/Cl)</h4>
+                        <button class="btn btn-primary btn-sm" id="auto-calc-ref-btn"
+                            style="margin-bottom: 12px; width: 100%;">
+                            🔄 Auto-Calculate from Mesh
+                        </button>
+                        <div id="ref-calc-status"
+                            style="display: none; margin-bottom: 12px; padding: 8px; border-radius: 4px; font-size: 0.85em;">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>
+                                    Reference / Frontal Area (m²)
+                                    <button class="info-btn" data-info="ref-area">?</button>
+                                    <button class="default-btn" data-field="ref-area" title="Set as default">⭐</button>
+                                </label>
+                                <input type="number" id="ref-area" value="1.0" step="0.001" min="0.0001">
+                            </div>
+                            <div class="form-group">
+                                <label>
+                                    Reference Length (m)
+                                    <button class="info-btn" data-info="ref-length">?</button>
+                                    <button class="default-btn" data-field="ref-length"
+                                        title="Set as default">⭐</button>
+                                </label>
+                                <input type="number" id="ref-length" value="1.0" step="0.001" min="0.0001">
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="action-bar">
                         <button class="btn btn-success" id="run-simulation-btn" disabled>
                             Run Simulation
@@ -596,13 +680,22 @@
                         <div class="progress-stats">
                             <span id="progress-time">Time: 0m 0s</span>
                             <span id="progress-iter">SimTime: 0</span>
+                            <span id="progress-courant" style="display: none;">Co: --</span>
+                            <span id="progress-delta-t" style="display: none;">ΔT: --</span>
                             <span id="progress-eta">ETA: --</span>
                         </div>
                         <div class="storage-stats">
                             <span>💾 <span id="current-storage">0 MB</span></span>
                             <span id="est-size-container" style="display: none;">📈 Est: <span
-                                    id="estimated-total-size">-- MB</span></span>
+                                    id="estimated-total-size">--
+                                    MB</span></span>
                         </div>
+                    </div>
+
+                    <div id="sim-results-btn-container" style="display: none; margin-top: 12px;">
+                        <button class="btn btn-primary" id="view-results-btn" style="width: 100%;">
+                            📊 View Results
+                        </button>
                     </div>
 
                     <div class="paraview-info" id="paraview-info" style="display: none;">
@@ -779,9 +872,10 @@
                                     style="position: absolute; top: 50%; transform: translateY(-50%); height: 6px; background: var(--accent-primary); border-radius: 3px; left: 0%; right: 0%;">
                                 </div>
                                 <input type="range" id="analysis-start-time-slider" min="0" max="100" value="0" step="1"
-                                    style="position: absolute; width: 100%; height: 40px; background: transparent; top: 0;">
+                                    style="position: absolute; width: 100%; height: 40px; background: transparent; top: 0; z-index: 3; pointer-events: auto;">
                                 <input type="range" id="analysis-end-time-slider" min="0" max="100" value="100" step="1"
-                                    style="position: absolute; width: 100%; height: 40px; background: transparent; top: 0;">
+                                    style="position: absolute; width: 100%; height: 40px; background: transparent; top: 0; z-index: 2; pointer-events: auto;">
+
                             </div>
                             <div
                                 style="display: flex; justify-content: space-between; font-size: 0.8em; color: var(--text-muted);">
@@ -801,7 +895,8 @@
                             </div>
                         </div>
                         <p id="analysis-time-info"
-                            style="font-size: 0.85em; color: var(--text-muted); margin-top: 8px;"></p>
+                            style="font-size: 0.85em; color: var(--text-muted); margin-top: 8px;">
+                        </p>
                     </div>
 
                     <!-- Display Settings -->
@@ -862,70 +957,214 @@
                         </div>
 
                         <div id="performance-data" style="display: none;">
-                            <!-- Metrics Grid -->
-                            <div class="result-grid" style="margin-bottom: 20px;">
-                                <div class="result-item">
-                                    <span class="result-label">Drag Coefficient (Cd)</span>
-                                    <span class="result-value" id="perf-cd">-</span>
+
+                            <!-- Solution Quality Card -->
+                            <div id="convergence-card" style="display: none; margin-bottom: 20px;">
+                                <div style="font-size:0.75em;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;
+                                            color:var(--text-muted);margin-bottom:10px;padding-bottom:4px;
+                                            border-bottom:1px solid var(--border-color);">
+                                    Solution Quality
                                 </div>
-                                <div class="result-item">
-                                    <span class="result-label">Lift Coefficient (Cl)</span>
-                                    <span class="result-value" id="perf-cl">-</span>
+
+                                <!-- Convergence Verdict -->
+                                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                                    <span id="convergence-badge"
+                                        style="padding: 4px 12px; border-radius: 20px; font-size: 0.85em; font-weight: 600;">
+                                        —
+                                    </span>
+                                    <span id="convergence-message"
+                                        style="color: var(--text-secondary); font-size: 0.85em;">
+                                    </span>
                                 </div>
-                                <div class="result-item">
-                                    <span class="result-label">Drag Force</span>
-                                    <span class="result-value" id="perf-drag">- N</span>
+
+                                <!-- Residual Summary Table -->
+                                <div style="overflow-x: auto; margin-bottom: 16px;">
+                                    <table id="residual-table" style="width: 100%; border-collapse: collapse; font-size: 0.82em;">
+                                        <thead>
+                                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                                <th style="text-align: left; padding: 6px 8px; color: var(--text-muted);">Field</th>
+                                                <th style="text-align: right; padding: 6px 8px; color: var(--text-muted);">Initial</th>
+                                                <th style="text-align: right; padding: 6px 8px; color: var(--text-muted);">Final</th>
+                                                <th style="text-align: right; padding: 6px 8px; color: var(--text-muted);">Orders ↓</th>
+                                                <th style="text-align: center; padding: 6px 8px; color: var(--text-muted);">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="residual-table-body">
+                                        </tbody>
+                                    </table>
                                 </div>
-                                <div class="result-item">
-                                    <span class="result-label">Lift Force</span>
-                                    <span class="result-value" id="perf-lift">- N</span>
-                                </div>
-                                <div class="result-item">
-                                    <span class="result-label">L/D Ratio</span>
-                                    <span class="result-value" id="perf-ld">-</span>
-                                </div>
-                                <div class="result-item">
-                                    <span class="result-label">Frontal Area</span>
-                                    <span class="result-value" id="perf-area">- m²</span>
+
+                                <!-- Continuity & Force Stability -->
+                                <div class="result-grid">
+                                    <div class="result-item">
+                                        <span class="result-label">Continuity (local)</span>
+                                        <span class="result-value" id="conv-cont-local">—</span>
+                                    </div>
+                                    <div class="result-item">
+                                        <span class="result-label">Continuity (global)</span>
+                                        <span class="result-value" id="conv-cont-global">—</span>
+                                    </div>
+                                    <div class="result-item">
+                                        <span class="result-label">Cd stability (σ last 20)</span>
+                                        <span class="result-value" id="conv-cd-std">—</span>
+                                    </div>
+                                    <div class="result-item">
+                                        <span class="result-label">Cl stability (σ last 20)</span>
+                                        <span class="result-value" id="conv-cl-std">—</span>
+                                    </div>
                                 </div>
                             </div>
 
-                            <!-- Detailed JSON View -->
+                            <!-- Reference Settings Banner -->
+                            <div id="perf-settings-banner" style="
+                                background: rgba(99,102,241,0.1);
+                                border: 1px solid rgba(99,102,241,0.3);
+                                border-radius: 8px;
+                                padding: 10px 14px;
+                                margin-bottom: 18px;
+                                font-size: 0.82em;
+                                display: flex;
+                                flex-wrap: wrap;
+                                gap: 16px;
+                                color: var(--text-secondary);
+                            ">
+                                <span>🌬️ Wind: <strong id="perf-banner-wind"
+                                        style="color:var(--accent-primary)">—</strong></span>
+                                <span>⬆️ Up: <strong id="perf-banner-up"
+                                        style="color:var(--accent-primary)">—</strong></span>
+                                <span>📐 Frontal Area: <strong id="perf-banner-area"
+                                        style="color:var(--accent-primary)">—</strong></span>
+                                <span>📏 Ref Length: <strong id="perf-banner-len"
+                                        style="color:var(--accent-primary)">—</strong></span>
+                            </div>
+
+                            <!-- Section: Aerodynamic Coefficients -->
+                            <div style="margin-bottom: 20px;">
+                                <div style="font-size:0.75em;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;
+                                            color:var(--text-muted);margin-bottom:10px;padding-bottom:4px;
+                                            border-bottom:1px solid var(--border-color);">
+                                    Aerodynamic Coefficients
+                                </div>
+                                <div class="result-grid">
+                                    <div class="result-item">
+                                        <span class="result-label">Drag Coefficient (Cd)</span>
+                                        <span class="result-value accent" id="perf-cd">—</span>
+                                    </div>
+                                    <div class="result-item">
+                                        <span class="result-label">Lift Coefficient (Cl)</span>
+                                        <span class="result-value accent" id="perf-cl">—</span>
+                                    </div>
+                                    <div class="result-item">
+                                        <span class="result-label">Side Force Coefficient (Cs)</span>
+                                        <span class="result-value" id="perf-cs">—</span>
+                                    </div>
+                                    <div class="result-item">
+                                        <span class="result-label">L/D Ratio</span>
+                                        <span class="result-value" id="perf-ld">—</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Section: Aerodynamic Forces -->
+                            <div style="margin-bottom: 20px;">
+                                <div style="font-size:0.75em;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;
+                                            color:var(--text-muted);margin-bottom:10px;padding-bottom:4px;
+                                            border-bottom:1px solid var(--border-color);">
+                                    Aerodynamic Forces <span id="perf-axes-note"
+                                        style="font-weight:400;font-size:0.9em;text-transform:none;"></span>
+                                </div>
+                                <div class="result-grid">
+                                    <div class="result-item">
+                                        <span class="result-label" id="perf-drag-label">Drag Force</span>
+                                        <span class="result-value danger" id="perf-drag">—</span>
+                                    </div>
+                                    <div class="result-item">
+                                        <span class="result-label" id="perf-lift-label">Lift Force</span>
+                                        <span class="result-value" id="perf-lift">—</span>
+                                    </div>
+                                    <div class="result-item">
+                                        <span class="result-label" id="perf-side-label">Side Force</span>
+                                        <span class="result-value" id="perf-side">—</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Section: Raw Force Components -->
+                            <div style="margin-bottom: 20px;">
+                                <div style="font-size:0.75em;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;
+                                            color:var(--text-muted);margin-bottom:10px;padding-bottom:4px;
+                                            border-bottom:1px solid var(--border-color);">
+                                    Raw Force Components (OpenFOAM axes)
+                                </div>
+                                <div class="result-grid">
+                                    <div class="result-item">
+                                        <span class="result-label">Force X (Fx)</span>
+                                        <span class="result-value" id="perf-fx">—</span>
+                                    </div>
+                                    <div class="result-item">
+                                        <span class="result-label">Force Y (Fy)</span>
+                                        <span class="result-value" id="perf-fy">—</span>
+                                    </div>
+                                    <div class="result-item">
+                                        <span class="result-label">Force Z (Fz)</span>
+                                        <span class="result-value" id="perf-fz">—</span>
+                                    </div>
+                                    <div class="result-item">
+                                        <span class="result-label">Moment X (Mx)</span>
+                                        <span class="result-value" id="perf-mx">—</span>
+                                    </div>
+                                    <div class="result-item">
+                                        <span class="result-label">Moment Y (My)</span>
+                                        <span class="result-value" id="perf-my">—</span>
+                                    </div>
+                                    <div class="result-item">
+                                        <span class="result-label">Moment Z (Mz)</span>
+                                        <span class="result-value" id="perf-mz">—</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Raw Data Toggle -->
                             <details>
                                 <summary style="cursor: pointer; margin-bottom: 10px; color: var(--text-secondary);">
-                                    Show Raw Data</summary>
+                                    ▶ Show Raw JSON</summary>
                                 <pre id="perf-raw"
                                     style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 4px; overflow: auto; max-height: 300px; font-size: 0.8em;"></pre>
                             </details>
                         </div>
 
                         <div id="performance-empty"
-                            style="text-align: center; padding: 20px; color: var(--text-secondary);">
-                            No performance data available for this run.
+                            style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                            <div style="font-size: 2em; margin-bottom: 12px;">📊</div>
+                            <div style="font-weight: 600; margin-bottom: 8px;">No Results Yet</div>
+                            <div style="font-size: 0.9em;">Complete a simulation run then click <strong>Refresh
+                                    Analysis</strong></div>
                         </div>
-                    </div>
 
-                    <!-- ParaView Section (shown at bottom of Performance tab) -->
-                    <div class="card" id="performance-paraview-section" style="margin-top: 16px;">
-                        <h4>🎬 Open in ParaView</h4>
-                        <p style="color: var(--text-muted); margin-bottom: 12px;">Visualize the simulation results in
-                            ParaView</p>
-                        <div
-                            style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
-                            <code id="performance-pv-path"
-                                style="word-break: break-all; font-size: 0.9em;">Loading...</code>
+
+
+                        <!-- ParaView Section (shown at bottom of Performance tab) -->
+                        <div class="card" id="performance-paraview-section" style="margin-top: 16px;">
+                            <h4>🎬 Open in ParaView</h4>
+                            <p style="color: var(--text-muted); margin-bottom: 12px;">Visualize the simulation results
+                                in
+                                ParaView</p>
+                            <div
+                                style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+                                <code id="performance-pv-path"
+                                    style="word-break: break-all; font-size: 0.9em;">Loading...</code>
+                            </div>
+                            <div class="action-buttons" style="display: flex; gap: 8px;">
+                                <button class="btn btn-secondary btn-sm"
+                                    onclick="navigator.clipboard.writeText(document.getElementById('performance-pv-path').textContent); alert('Path copied!')">
+                                    📋 Copy Path
+                                </button>
+                                <button class="btn btn-secondary btn-sm"
+                                    onclick="document.querySelector('[data-tab=&quot;paraview&quot;]')?.click()">
+                                    🔧 ParaView Helper
+                                </button>
+                            </div>
                         </div>
-                        <div class="action-buttons" style="display: flex; gap: 8px;">
-                            <button class="btn btn-secondary btn-sm"
-                                onclick="navigator.clipboard.writeText(document.getElementById('performance-pv-path').textContent); alert('Path copied!')">
-                                📋 Copy Path
-                            </button>
-                            <button class="btn btn-secondary btn-sm"
-                                onclick="document.querySelector('[data-tab=&quot;paraview&quot;]')?.click()">
-                                🔧 ParaView Helper
-                            </button>
-                        </div>
-                    </div>
                 </section>
 
                 <!-- Logs Tab -->

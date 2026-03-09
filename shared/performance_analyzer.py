@@ -98,6 +98,307 @@ class PerformanceAnalyzer:
         except Exception as e:
             print(f"Error detecting patches: {e}")
             return []
+    
+    # =========================================================================
+    # Reference Value Calculation from Mesh
+    # =========================================================================
+    
+    def calculate_ref_values(self, case_dir: Path, patch_names: List[str], 
+                              flow_direction: List[float] = [1, 0, 0],
+                              up_direction: str = "z-up") -> Dict[str, Any]:
+        """
+        Calculate reference area and length from polyMesh data.
+        
+        Reads the mesh, extracts faces belonging to the specified patches,
+        projects them perpendicular to the flow direction, and computes
+        the projected (frontal) area and reference length.
+        
+        Args:
+            case_dir: Path to the OpenFOAM case directory
+            patch_names: List of patch names to analyze (e.g. ['model'])
+            flow_direction: Inlet velocity direction [vx, vy, vz]
+            up_direction: 'z-up' or 'y-up'
+            
+        Returns:
+            Dict with ref_area, ref_length, bbox, and method details
+        """
+        import numpy as np
+        
+        poly_mesh_dir = case_dir / "constant" / "polyMesh"
+        
+        try:
+            # 1. Parse boundary to get patch start face and nFaces
+            boundary_file = poly_mesh_dir / "boundary"
+            patch_info = self._parse_boundary_for_faces(boundary_file, patch_names)
+            if not patch_info:
+                return {"error": f"Could not find patches {patch_names} in boundary file"}
+            
+            # 2. Parse points
+            points = self._parse_points(poly_mesh_dir / "points")
+            if points is None:
+                return {"error": "Could not parse points file"}
+            
+            # 3. Parse faces
+            faces = self._parse_faces(poly_mesh_dir / "faces")
+            if faces is None:
+                return {"error": "Could not parse faces file"}
+            
+            # 4. Collect all vertex indices belonging to the model patches
+            vertex_indices = set()
+            face_vertex_groups = []  # For area calculation per face
+            
+            for pinfo in patch_info:
+                start_face = pinfo['startFace']
+                n_faces = pinfo['nFaces']
+                for fi in range(start_face, start_face + n_faces):
+                    if fi < len(faces):
+                        face_verts = faces[fi]
+                        vertex_indices.update(face_verts)
+                        face_vertex_groups.append(face_verts)
+            
+            if not vertex_indices:
+                return {"error": "No vertices found for specified patches"}
+            
+            # 5. Get the 3D coordinates
+            model_points = points[list(vertex_indices)]
+            
+            # 6. Normalize flow direction
+            flow = np.array(flow_direction, dtype=float)
+            flow_mag = np.linalg.norm(flow)
+            if flow_mag == 0:
+                flow = np.array([1.0, 0.0, 0.0])
+            else:
+                flow = flow / flow_mag
+            
+            # 7. Reference length = extent of model along flow direction
+            projections_flow = model_points @ flow
+            ref_length = float(projections_flow.max() - projections_flow.min())
+            
+            # 8. Compute bounding box
+            bbox_min = model_points.min(axis=0).tolist()
+            bbox_max = model_points.max(axis=0).tolist()
+            
+            # 9. Project points onto plane perpendicular to flow direction
+            # Create orthonormal basis for the projection plane
+            if up_direction == "y-up":
+                up = np.array([0.0, 1.0, 0.0])
+            else:
+                up = np.array([0.0, 0.0, 1.0])
+            
+            # If flow is parallel to up, pick a different up
+            if abs(np.dot(flow, up)) > 0.95:
+                up = np.array([0.0, 1.0, 0.0]) if up_direction == "z-up" else np.array([0.0, 0.0, 1.0])
+            
+            # Gram-Schmidt to get two orthonormal vectors perpendicular to flow
+            v1 = up - np.dot(up, flow) * flow
+            v1 = v1 / np.linalg.norm(v1)
+            v2 = np.cross(flow, v1)
+            v2 = v2 / np.linalg.norm(v2)
+            
+            # Project all model points onto the 2D plane
+            proj_2d = np.column_stack([model_points @ v1, model_points @ v2])
+            
+            # 10. Compute projected area
+            # Try ConvexHull first (fast, good for convex-ish shapes)
+            # Then rasterize for a more accurate concave estimate
+            try:
+                from scipy.spatial import ConvexHull
+                hull = ConvexHull(proj_2d)
+                convex_area = float(hull.volume)  # In 2D, 'volume' = area
+            except Exception:
+                convex_area = None
+            
+            # Rasterize for concave shapes — project each face triangle
+            raster_area = self._rasterize_projected_area(
+                points, face_vertex_groups, v1, v2, resolution=200
+            )
+            
+            # Use the smaller of convex hull and raster (raster handles concavities)
+            if convex_area is not None and raster_area is not None:
+                ref_area = min(convex_area, raster_area)
+                method = "raster" if raster_area < convex_area else "convex_hull"
+            elif raster_area is not None:
+                ref_area = raster_area
+                method = "raster"
+            elif convex_area is not None:
+                ref_area = convex_area
+                method = "convex_hull"
+            else:
+                # Fallback: bounding box area perpendicular to flow
+                bbox_extents = np.array(bbox_max) - np.array(bbox_min)
+                # Project bbox extents onto the two perpendicular axes
+                e1 = abs(float(bbox_extents @ v1))
+                e2 = abs(float(bbox_extents @ v2))
+                ref_area = e1 * e2
+                method = "bounding_box"
+            
+            return {
+                "ref_area": round(ref_area, 6),
+                "ref_length": round(ref_length, 6),
+                "method": method,
+                "convex_hull_area": round(convex_area, 6) if convex_area else None,
+                "raster_area": round(raster_area, 6) if raster_area else None,
+                "bbox_min": [round(v, 6) for v in bbox_min],
+                "bbox_max": [round(v, 6) for v in bbox_max],
+                "num_faces": len(face_vertex_groups),
+                "num_vertices": len(vertex_indices),
+                "patches_used": [p['name'] for p in patch_info]
+            }
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {"error": str(e)}
+    
+    def _parse_boundary_for_faces(self, boundary_file: Path, 
+                                   patch_names: List[str]) -> List[Dict]:
+        """Parse boundary file to get startFace and nFaces for specified patches."""
+        if not boundary_file.exists():
+            return []
+        
+        content = boundary_file.read_text()
+        results = []
+        
+        for patch_name in patch_names:
+            # Find the patch block
+            pattern = rf'{re.escape(patch_name)}\s*\{{([^}}]*)\}}'
+            match = re.search(pattern, content)
+            if match:
+                block = match.group(1)
+                n_faces_match = re.search(r'nFaces\s+(\d+)', block)
+                start_face_match = re.search(r'startFace\s+(\d+)', block)
+                if n_faces_match and start_face_match:
+                    results.append({
+                        'name': patch_name,
+                        'nFaces': int(n_faces_match.group(1)),
+                        'startFace': int(start_face_match.group(1))
+                    })
+        
+        return results
+    
+    def _parse_points(self, points_file: Path):
+        """Parse OpenFOAM points file into numpy array."""
+        import numpy as np
+        
+        if not points_file.exists():
+            return None
+        
+        content = points_file.read_text()
+        
+        # Find the start of the point list (after the count and opening paren)
+        # Format: N\n(\n(x y z)\n(x y z)\n...\n)
+        match = re.search(r'(\d+)\s*\n\s*\(', content)
+        if not match:
+            return None
+        
+        n_points = int(match.group(1))
+        start = match.end()
+        
+        # Extract all point tuples
+        point_pattern = re.compile(r'\(\s*([eE\d.+-]+)\s+([eE\d.+-]+)\s+([eE\d.+-]+)\s*\)')
+        points = []
+        for m in point_pattern.finditer(content, start):
+            points.append([float(m.group(1)), float(m.group(2)), float(m.group(3))])
+            if len(points) >= n_points:
+                break
+        
+        return np.array(points)
+    
+    def _parse_faces(self, faces_file: Path):
+        """Parse OpenFOAM faces file into list of vertex index lists."""
+        if not faces_file.exists():
+            return None
+        
+        content = faces_file.read_text()
+        
+        # Find list count and start
+        match = re.search(r'(\d+)\s*\n\s*\(', content)
+        if not match:
+            return None
+        
+        n_faces = int(match.group(1))
+        start = match.end()
+        
+        # Face format: N(v0 v1 v2 ... vN-1)
+        face_pattern = re.compile(r'(\d+)\(([^)]+)\)')
+        faces = []
+        for m in face_pattern.finditer(content, start):
+            verts = [int(v) for v in m.group(2).split()]
+            faces.append(verts)
+            if len(faces) >= n_faces:
+                break
+        
+        return faces
+    
+    def _rasterize_projected_area(self, points, face_vertex_groups, 
+                                    v1, v2, resolution=200):
+        """
+        Compute projected area by rasterizing face projections onto a 2D grid.
+        Handles concave shapes correctly (unlike convex hull).
+        """
+        import numpy as np
+        
+        try:
+            # Collect all face vertices and project
+            all_proj = []
+            for face_verts in face_vertex_groups:
+                face_pts = points[face_verts]
+                proj = np.column_stack([face_pts @ v1, face_pts @ v2])
+                all_proj.append(proj)
+            
+            # Get bounding box of all projected points
+            all_pts = np.vstack(all_proj)
+            min_u, min_v = all_pts.min(axis=0)
+            max_u, max_v = all_pts.max(axis=0)
+            
+            # Add small margin
+            margin = max((max_u - min_u), (max_v - min_v)) * 0.01
+            min_u -= margin
+            min_v -= margin
+            max_u += margin
+            max_v += margin
+            
+            range_u = max_u - min_u
+            range_v = max_v - min_v
+            
+            if range_u <= 0 or range_v <= 0:
+                return None
+            
+            # Scale resolution based on aspect ratio
+            if range_u > range_v:
+                res_u = resolution
+                res_v = max(1, int(resolution * range_v / range_u))
+            else:
+                res_v = resolution
+                res_u = max(1, int(resolution * range_u / range_v))
+            
+            # Create raster grid
+            grid = np.zeros((res_v, res_u), dtype=bool)
+            
+            cell_area = (range_u / res_u) * (range_v / res_v)
+            
+            # For each face, fill the raster cells that its projection covers
+            for proj in all_proj:
+                # Convert to grid coordinates
+                gu = ((proj[:, 0] - min_u) / range_u * (res_u - 1)).astype(int)
+                gv = ((proj[:, 1] - min_v) / range_v * (res_v - 1)).astype(int)
+                
+                gu = np.clip(gu, 0, res_u - 1)
+                gv = np.clip(gv, 0, res_v - 1)
+                
+                # Fill the polygon in the raster using scanline
+                # For simplicity, just fill the bounding box of each face
+                # and mark all cells within
+                u_min, u_max = gu.min(), gu.max()
+                v_min, v_max = gv.min(), gv.max()
+                grid[v_min:v_max+1, u_min:u_max+1] = True
+            
+            filled_cells = np.sum(grid)
+            return float(filled_cells * cell_area)
+            
+        except Exception as e:
+            print(f"Rasterize error: {e}")
+            return None
 
     # =========================================================================
     # File Parsing
@@ -451,18 +752,24 @@ class PerformanceAnalyzer:
                 "cm": avg_coeffs.get('cm', 0),
                 "l_d_ratio": avg_coeffs.get('cl', 0) / avg_coeffs.get('cd', 1e-6) if avg_coeffs.get('cd', 0) != 0 else 0
             })
-        else:
-            # Calculate coefficients manually if ref values provided
-            rho = config.get('rho', 1.225)
-            u_inf = config.get('u_inf', 10.0)
-            a_ref = config.get('a_ref', 1.0)
             
-            q = 0.5 * rho * (u_inf ** 2)
-            if q > 0 and a_ref > 0:
-                summary["metrics"].update({
-                    "cl_calc": lift / (q * a_ref),
-                    "cd_calc": drag / (q * a_ref)
-                })
+        # ALWAYS calculate coefficients manually using current config's ref values
+        rho = config.get('rho', 1.225)
+        u_inf = config.get('u_inf', 10.0)
+        a_ref = config.get('a_ref', 1.0)
+        
+        q = 0.5 * rho * (u_inf ** 2)
+        if q > 0 and a_ref > 0:
+            cd_calc = drag / (q * a_ref)
+            cl_calc = lift / (q * a_ref)
+            summary["metrics"].update({
+                "cl_calc": cl_calc,
+                "cd_calc": cd_calc,
+                # Override the base cd/cl using the fresh calculations
+                "cl": cl_calc,
+                "cd": cd_calc,
+                "l_d_ratio": cl_calc / cd_calc if cd_calc != 0 else 0
+            })
                 
         return summary
 

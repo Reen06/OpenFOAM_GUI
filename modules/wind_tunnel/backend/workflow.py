@@ -51,6 +51,49 @@ class WorkflowManager:
         self.fo_manager = FunctionObjectManager()
         
 
+    def _compute_drag_lift_axes(self, inlet_velocity, up_direction="z-up"):
+        """
+        Derive drag and lift axes from the inlet velocity direction.
+        Drag axis = normalized inlet velocity direction.
+        Lift axis = perpendicular to drag, using user's chosen up direction.
+        """
+        import math
+        vx, vy, vz = inlet_velocity
+        mag = math.sqrt(vx**2 + vy**2 + vz**2)
+        if mag == 0:
+            return [1, 0, 0], [0, 0, 1] if up_direction == "z-up" else [0, 1, 0]
+        
+        # Normalized drag direction (same as flow direction)
+        drag = [vx/mag, vy/mag, vz/mag]
+        
+        # Order up candidates based on user's chosen up direction
+        if up_direction == "y-up":
+            up_candidates = [[0, 1, 0], [0, 0, 1], [1, 0, 0]]
+        else:  # z-up (default)
+            up_candidates = [[0, 0, 1], [0, 1, 0], [1, 0, 0]]
+        
+        for up in up_candidates:
+            # Cross product: side = up x drag  
+            cross = [
+                up[1]*drag[2] - up[2]*drag[1],
+                up[2]*drag[0] - up[0]*drag[2],
+                up[0]*drag[1] - up[1]*drag[0]
+            ]
+            cross_mag = math.sqrt(cross[0]**2 + cross[1]**2 + cross[2]**2)
+            if cross_mag > 0.1:  # Not parallel
+                # Normalize, then compute true lift = drag x side to get right-hand system
+                cross_norm = [c/cross_mag for c in cross]
+                lift = [
+                    drag[1]*cross_norm[2] - drag[2]*cross_norm[1],
+                    drag[2]*cross_norm[0] - drag[0]*cross_norm[2],
+                    drag[0]*cross_norm[1] - drag[1]*cross_norm[0]
+                ]
+                lift_mag = math.sqrt(lift[0]**2 + lift[1]**2 + lift[2]**2)
+                if lift_mag > 0:
+                    lift = [l/lift_mag for l in lift]
+                return drag, lift
+        
+        return drag, [0, 0, 1] if up_direction == "z-up" else [0, 1, 0]
     
     async def run_cmd_async(
         self,
@@ -177,8 +220,11 @@ class WorkflowManager:
         
         mesh_file = mesh_files[0]
         
-        # Copy mesh file to case directory for the converter
-        case_mesh_file = case_dir / mesh_file.name
+        # Sanitize filename: replace spaces with underscores for OpenFOAM tools
+        safe_name = mesh_file.name.replace(" ", "_")
+        
+        # Copy mesh file to case directory (with sanitized name) for the converter
+        case_mesh_file = case_dir / safe_name
         if not case_mesh_file.exists():
             shutil.copy2(mesh_file, case_mesh_file)
             if log_callback:
@@ -186,9 +232,9 @@ class WorkflowManager:
         
         # Determine converter based on file extension
         if mesh_file.suffix.lower() == ".unv":
-            cmd = f"ideasUnvToFoam {mesh_file.name}"
+            cmd = f"ideasUnvToFoam {safe_name}"
         elif mesh_file.suffix.lower() == ".msh":
-            cmd = f"gmshToFoam {mesh_file.name}"
+            cmd = f"gmshToFoam {safe_name}"
         else:
             if log_callback:
                 await log_callback(f"[MESH] ERROR: Unsupported mesh format: {mesh_file.suffix}")
@@ -328,9 +374,30 @@ class WorkflowManager:
                     analysis_config['u_inf'] = u_inf
                     analysis_config['rho'] = material_settings.get("density", 1.225)
                     
+                    # *** CRITICAL: Pass ref_area and ref_length from solver_settings ***
+                    # These are set by the user in the UI and must be carried into analysis
+                    a_ref = solver_settings.get("ref_area", analysis_settings.get("ref_area", 1.0))
+                    l_ref = solver_settings.get("ref_length", analysis_settings.get("ref_length", 1.0))
+                    analysis_config['a_ref'] = a_ref
+                    analysis_config['l_ref'] = l_ref
+                    
+                    # Derive drag/lift axes from inlet velocity direction
+                    drag_axis, lift_axis = self._compute_drag_lift_axes(inlet_vel, solver_settings.get('up_direction', 'z-up'))
+                    analysis_config['drag_axis'] = drag_axis
+                    analysis_config['lift_axis'] = lift_axis
+                    
                     summary = self.analyzer.analyze_windtunnel(run_dir / "windTunnelCase", analysis_config)
                     
                     if "error" not in summary:
+                        # Inject config info into summary so the cached JSON includes ref area
+                        if 'config' not in summary:
+                            summary['config'] = {}
+                        summary['config']['a_ref'] = a_ref
+                        summary['config']['l_ref'] = l_ref
+                        summary['config']['ref_area'] = a_ref
+                        summary['config']['ref_length'] = l_ref
+                        summary['config']['u_inf'] = u_inf
+                        summary['config']['rho'] = material_settings.get("density", 1.225)
                         self.analyzer.save_summary(summary, run_dir)
                         if self.run_manager:
                             self.run_manager.record_solve_completion(
@@ -401,8 +468,8 @@ class WorkflowManager:
             
             content = re.sub(r'endTime\s+[\d.e+-]+;', f'endTime {end_time};', content)
             content = re.sub(r'deltaT\s+[\d.e+-]+;', f'deltaT {delta_t};', content)
-            content = re.sub(r'writeControl\s+\w+;', f'writeControl {write_control};', content)
-            content = re.sub(r'writeInterval\s+[\d.e+-]+;', f'writeInterval {write_interval};', content)
+            content = re.sub(r'writeControl\s+\w+;', f'writeControl {write_control};', content, count=1)
+            content = re.sub(r'writeInterval\s+[\d.e+-]+;', f'writeInterval {write_interval};', content, count=1)
             content = re.sub(r'purgeWrite\s+\d+;', f'purgeWrite {purge_write};', content)
             
             # Adaptive time stepping (only for transient solvers)
@@ -432,6 +499,18 @@ class WorkflowManager:
                 content = re.sub(r'maxDeltaT\s+[\d.e+-]+;', f'maxDeltaT {max_delta_t};', content)
             else:
                 content = content.replace('purgeWrite', f'maxDeltaT {max_delta_t};\npurgeWrite')
+            
+            # Add optional minDeltaT support
+            enable_min_dt = solver_settings.get("enable_min_delta_t", False)
+            if enable_min_dt:
+                min_delta_t = solver_settings.get("min_delta_t", 1e-6)
+                if 'minDeltaT' in content:
+                    content = re.sub(r'minDeltaT\s+[\d.e+-]+;', f'minDeltaT {min_delta_t};', content)
+                else:
+                    content = content.replace('purgeWrite', f'minDeltaT {min_delta_t};\npurgeWrite')
+            else:
+                # Remove minDeltaT if it was previously set
+                content = re.sub(r'minDeltaT\s+[\d.e+-]+;\n?', '', content)
             
             # Schedule mode overrides
             if time_schedule and len(time_schedule) > 0:
@@ -798,6 +877,47 @@ LES
         inlet_velocity = solver_settings.get("inlet_velocity", [10, 0, 0])
         wall_type = solver_settings.get("wall_type", "slip")
         wall_slip_fraction = solver_settings.get("wall_slip_fraction", 0.5)
+        model_surface_type = solver_settings.get("model_surface_type", "noSlip")
+        model_slip_fraction = solver_settings.get("model_slip_fraction", 0.5)
+        
+        def _apply_patch_bc(content, patch_name, bc_type, slip_fraction=0.5):
+            """Apply a boundary condition type to a named patch in the U file.
+            
+            Supports: slip, noSlip, partialSlip.
+            Uses regex to find and replace the patch block.
+            """
+            if bc_type == "slip":
+                new_block = f"""{patch_name}
+    {{
+        type            slip;
+    }}"""
+            elif bc_type == "noSlip":
+                new_block = f"""{patch_name}
+    {{
+        type            noSlip;
+    }}"""
+            elif bc_type == "partialSlip":
+                # OpenFOAM partialSlip: valueFraction 0 = full slip, 1 = no-slip
+                # Our slider: 0% = no-slip, 100% = full slip
+                # So we invert: valueFraction = 1 - slip_fraction
+                value_fraction = 1.0 - slip_fraction
+                new_block = f"""{patch_name}
+    {{
+        type            partialSlip;
+        valueFraction   uniform {value_fraction};
+        value           uniform (0 0 0);
+    }}"""
+            else:
+                # wallFunction or unknown — keep noSlip as safe default
+                new_block = f"""{patch_name}
+    {{
+        type            noSlip;
+    }}"""
+            
+            # Replace the patch block using regex
+            pattern = rf'{patch_name}\s*\{{[^}}]*type\s+\w+;[^}}]*\}}'
+            new_content = re.sub(pattern, new_block, content)
+            return new_content
         
         # Update U file
         u_file = case_dir / "0" / "U"
@@ -806,94 +926,17 @@ LES
             vel_str = f"({inlet_velocity[0]} {inlet_velocity[1]} {inlet_velocity[2]})"
             content = re.sub(r'value\s+uniform\s+\([^)]+\);', f'value uniform {vel_str};', content, count=1)
             
-            # Update wall type
-            if wall_type == "noSlip":
-                content = re.sub(r'(walls\s*\{[^}]*type\s+)slip;', r'\1noSlip;', content)
+            # Apply wall boundary condition (tunnel walls)
+            content = _apply_patch_bc(content, "walls", wall_type, wall_slip_fraction)
             
-            # Apply slip fraction if partialSlip
-            if wall_type == "partialSlip":
-                # This is more complex, requiring fixedValue and slip fraction value
-                # Simplified for now: just keep as slip or noSlip
-                pass
-                
+            # Apply model surface boundary condition
+            content = _apply_patch_bc(content, "model", model_surface_type, model_slip_fraction)
+            
             u_file.write_text(content)
-
-        # Configure Function Objects (Forces/Analysis)
-        if analysis_settings and analysis_settings.get("enabled", True):
+            
             if log_callback:
-                await log_callback("[SETTINGS] Configuring performance analysis...")
-            
-            try:
-                # 1. Detect patches
-                patches = analysis_settings.get("patches")
-                if not patches:
-                    # Auto-detect
-                    patches = PerformanceAnalyzer.detect_patches(
-                        case_dir / "constant" / "polyMesh" / "boundary",
-                        ["model", "wing", "body", "object", "car", "vehicle"]
-                    )
-                
-                if patches:
-                    fom = FunctionObjectManager()
-                    
-                    # 2. Generate dictionaries
-                    forces_content = fom.generate_forces_dict(
-                        name="forces1",
-                        patches=patches,
-                        rho_val=float(material_settings.get("density", 1.225))
-                    )
-                    
-                    coeffs_content = fom.generate_force_coeffs_dict(
-                        name="forceCoeffs1",
-                        patches=patches,
-                        rho_val=float(material_settings.get("density", 1.225)),
-                        u_inf=float(solver_settings.get("inlet_velocity", [10,0,0])[0]),
-                        l_ref=float(analysis_settings.get("ref_length", 1.0)),
-                        a_ref=float(analysis_settings.get("ref_area", 1.0)),
-                        lift_dir=[0, 0, 1], # Default Z-up
-                        drag_dir=[1, 0, 0]  # Default X-flow
-                    )
-                    
-                    # 3. Update controlDict
-                    cd_content = control_dict.read_text()
-                    new_content = fom.update_controldict(cd_content, {
-                        "forces1": forces_content,
-                        "forceCoeffs1": coeffs_content
-                    })
-                    control_dict.write_text(new_content)
-                    
-                    if log_callback:
-                        await log_callback(f"[SETTINGS] Analysis enabled for patches: {patches}")
-                else:
-                    if log_callback:
-                        await log_callback("[SETTINGS] Warning: No model patches found for analysis")
-                        
-            except Exception as e:
-                # Don't fail the whole run just for analysis config
-                if log_callback:
-                    await log_callback(f"[SETTINGS] Analysis config failed: {e}")
-                    import traceback
-                    traceback.print_exc()
-            if wall_type == "partialSlip":
-                # OpenFOAM partialSlip: valueFraction 0 = full slip, 1 = no-slip
-                # Our slider: 0% = no-slip, 100% = full slip
-                # So we invert: valueFraction = 1 - wall_slip_fraction
-                value_fraction = 1.0 - wall_slip_fraction
-                partial_slip_block = f"""walls
-    {{
-        type            partialSlip;
-        valueFraction   uniform {value_fraction};
-        value           uniform (0 0 0);
-    }}"""
-                # Replace the walls block
-                content = re.sub(
-                    r'walls\s*\{[^}]*type\s+\w+;[^}]*\}',
-                    partial_slip_block,
-                    content
-                )
-            
-            u_file.write_text(content)
-            
+                await log_callback(f"[SETTINGS] U file: walls={wall_type}, model={model_surface_type}")
+
         # Update fvSolution
         fv_solution = case_dir / "system" / "fvSolution"
         if fv_solution.exists():
@@ -932,7 +975,8 @@ LES
             
             def update_relaxation_factors(content, relax_p, relax_u):
                 """Update relaxation values inside the relaxationFactors block only."""
-                rf_match = re.search(r'(relaxationFactors\s*\{)(.*?)(\}\s*\n)', content, re.DOTALL)
+                # Use a greedy match to capture the full block including nested {} sub-blocks
+                rf_match = re.search(r'(relaxationFactors\s*\{)(.*)(^\})', content, re.DOTALL | re.MULTILINE)
                 if rf_match:
                     rf_block = rf_match.group(2)
                     # Update p in fields sub-block
@@ -1027,6 +1071,9 @@ LES
             u_inf = (inlet_vel[0]**2 + inlet_vel[1]**2 + inlet_vel[2]**2) ** 0.5
             if u_inf == 0: u_inf = 10.0
             
+            # Derive drag/lift axes from inlet velocity direction
+            drag_axis, lift_axis = self._compute_drag_lift_axes(inlet_vel, solver_settings.get('up_direction', 'z-up'))
+            
             # Generate dicts
             forces_content = self.fo_manager.generate_forces_dict(
                 name="forces1",
@@ -1039,10 +1086,10 @@ LES
                 patches=patches,
                 rho_val=rho,
                 u_inf=u_inf,
-                l_ref=analysis_settings.get("ref_length", 1.0),
-                a_ref=analysis_settings.get("ref_area", 1.0),
-                drag_dir=analysis_settings.get("drag_axis", [1, 0, 0]),
-                lift_dir=analysis_settings.get("lift_axis", [0, 0, 1])
+                l_ref=solver_settings.get("ref_length", analysis_settings.get("ref_length", 1.0)),
+                a_ref=solver_settings.get("ref_area", analysis_settings.get("ref_area", 1.0)),
+                drag_dir=drag_axis,
+                lift_dir=lift_axis
             )
             
             # Inject into controlDict

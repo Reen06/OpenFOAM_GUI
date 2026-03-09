@@ -133,12 +133,19 @@ class SolverSettings(BaseModel):
     turbulence_model: str = "kOmegaSST"
     end_time: float = 1000
     delta_t: float = 1
+    write_control: str = "timeStep"
     write_interval: float = 100
     purge_write: int = 0
     inlet_velocity: List[float] = [10, 0, 0]
     outlet_pressure: float = 0
     wall_type: str = "slip"
+    up_direction: str = "z-up"
     wall_slip_fraction: float = 0.5  # 0-1, used when wall_type is partialSlip
+    model_surface_type: str = "noSlip"  # noSlip, slip, partialSlip, wallFunction
+    model_slip_fraction: float = 0.5  # 0-1, used when model_surface_type is partialSlip
+    ref_area: float = 1.0  # Reference / frontal area for Cd/Cl calculations (m²)
+    ref_length: float = 1.0  # Reference length for moment coefficients (m)
+
     parallel: bool = False
     num_cores: int = 4
     n_outer_correctors: int = 1
@@ -146,6 +153,9 @@ class SolverSettings(BaseModel):
     relax_u: float = 0.7
     adjust_timestep: bool = False
     max_co: float = 0.5
+    max_delta_t: float = 1e-4
+    enable_min_delta_t: bool = False
+    min_delta_t: float = 1e-6
     time_schedule: Optional[List[Dict[str, Any]]] = None
     # Advanced settings
     n_inner_correctors: int = 2
@@ -732,7 +742,7 @@ async def start_run(run_id: str, request: RunStartRequest):
             run_dir=run_dir,
             solver_settings=request.solver_settings.model_dump(),
             material_settings=request.material_settings.model_dump(),
-            analysis_settings=request.analysis_settings.model_dump() if request.analysis_settings else None,
+            analysis_settings=request.analysis_settings.model_dump() if request.analysis_settings else {"enabled": True},
             log_callback=log_callback
         )
     )
@@ -872,7 +882,9 @@ async def get_run_performance(
     mode: str = "saved",  # saved, latest, average, window
     time_start: float = None,
     time_end: float = None,
-    exclude_fraction: float = 0.2
+    exclude_fraction: float = 0.2,
+    ref_area: float = None,
+    ref_length: float = None
 ):
     """
     Get performance analysis results for a run.
@@ -881,6 +893,8 @@ async def get_run_performance(
     - mode: 'saved' (read cached file), 'latest' (last timestep), 'average' (full avg), 'window' (time range)
     - time_start/time_end: For 'window' mode
     - exclude_fraction: Fraction of initial time to exclude for 'average' mode
+    - ref_area: Optional manual override from frontend
+    - ref_length: Optional manual override from frontend
     """
     run_dir = run_manager.get_run_directory(run_id)
     if not run_dir:
@@ -889,10 +903,31 @@ async def get_run_performance(
     # For 'saved' mode, just return the cached summary file
     if mode == "saved":
         summary_file = run_dir / "postProcessingSummary.json"
+        
         if summary_file.exists():
-            return json.loads(summary_file.read_text())
-        # Fall through to calculate if no saved file
-        mode = "average"
+            try:
+                saved_summary = json.loads(summary_file.read_text())
+                saved_a_ref = saved_summary.get("config", {}).get("a_ref", None)
+                
+                # Force recalculation when:
+                # 1. Frontend explicitly sent a ref_area override, AND
+                # 2. Either the cache has no a_ref, OR the cached a_ref doesn't match
+                needs_recalc = False
+                if ref_area is not None:
+                    if saved_a_ref is None:
+                        needs_recalc = True  # Old cache missing a_ref info
+                    elif abs(saved_a_ref - float(ref_area)) > 1e-6:
+                        needs_recalc = True  # Requested area differs from cached
+                
+                if not needs_recalc:
+                    return saved_summary
+                else:
+                    mode = "average"  # Force recalculation with new ref_area
+            except Exception:
+                mode = "average"
+        else:
+            # No saved file — calculate fresh
+            mode = "average"
     
     # Get run details for config
     details = run_manager.get_run_details(run_id)
@@ -925,7 +960,21 @@ async def get_run_performance(
     else:
         config['rho'] = 1.225
     
-    config['a_ref'] = 1.0  # Default reference area
+    # Get ref_area from solver settings or frontend override
+    resolved_ref_area = 1.0
+    resolved_ref_length = 1.0
+    
+    if details and "solver_settings" in details:
+        resolved_ref_area = details["solver_settings"].get("ref_area", 1.0)
+        resolved_ref_length = details["solver_settings"].get("ref_length", 1.0)
+        
+    if ref_area is not None:
+        resolved_ref_area = ref_area
+    if ref_length is not None:
+        resolved_ref_length = ref_length
+        
+    config['a_ref'] = resolved_ref_area
+    config['l_ref'] = resolved_ref_length
     
     try:
         summary = workflow_manager.analyzer.analyze_windtunnel(run_dir / "windTunnelCase", config)
@@ -935,12 +984,54 @@ async def get_run_performance(
         summary['config'] = {
             'time_start': time_start,
             'time_end': time_end,
-            'exclude_fraction': exclude_fraction
+            'exclude_fraction': exclude_fraction,
+            'ref_area': resolved_ref_area,
+            'ref_length': resolved_ref_length,
+            'a_ref': resolved_ref_area,
+            'l_ref': resolved_ref_length,
+            'rho': config['rho'],
+            'u_inf': config['u_inf']
         }
         
         return summary
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+@app.get("/api/run/{run_id}/ref-values")
+async def calculate_ref_values(run_id: str):
+    """Calculate reference area and length from polyMesh data."""
+    run_dir = run_manager.get_run_directory(run_id)
+    if not run_dir:
+        raise HTTPException(status_code=404, detail="Run not found")
+    
+    case_dir = run_dir / "windTunnelCase"
+    if not (case_dir / "constant" / "polyMesh" / "boundary").exists():
+        raise HTTPException(status_code=404, detail="No polyMesh found — run must have mesh loaded")
+    
+    # Get run details for flow direction
+    details = run_manager.get_run_details(run_id)
+    flow_direction = [1, 0, 0]
+    up_direction = "z-up"
+    if details and "solver_settings" in details:
+        flow_direction = details["solver_settings"].get("inlet_velocity", [10, 0, 0])
+        up_direction = details["solver_settings"].get("up_direction", "z-up")
+    
+    # Detect model patches
+    boundary_file = case_dir / "constant" / "polyMesh" / "boundary"
+    detected = workflow_manager.analyzer.detect_patches(
+        boundary_file, ["model", "car", "wing", "body", "object", "vehicle"]
+    )
+    
+    if detected:
+        patch_names = [p['name'] for p in detected]
+    else:
+        patch_names = ["model"]  # Fallback
+    
+    result = workflow_manager.analyzer.calculate_ref_values(
+        case_dir, patch_names, flow_direction, up_direction
+    )
+    
+    return result
 
 @app.post("/api/run/{run_id}/analyze")
 async def trigger_analysis(run_id: str, settings: AnalysisSettings = None):
@@ -977,6 +1068,168 @@ async def trigger_analysis(run_id: str, settings: AnalysisSettings = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
+# ============================================================================
+# Convergence / Solution Quality Analysis
+# ============================================================================
+
+@app.get("/api/run/{run_id}/convergence")
+async def get_run_convergence(run_id: str):
+    """
+    Parse solver log to extract residual convergence data, convergence status,
+    continuity errors, and force coefficient stability.
+    """
+    import re
+    import math
+
+    run_dir = run_manager.get_run_directory(run_id)
+    if not run_dir:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    # Find solver log file
+    logs_dir = run_dir / "logs"
+    log_file = None
+    solver_name = None
+
+    if logs_dir.exists():
+        for name in ["simpleFoam.log", "pimpleFoam.log", "rhoSimpleFoam.log", "rhoPimpleFoam.log"]:
+            candidate = logs_dir / name
+            if candidate.exists():
+                log_file = candidate
+                solver_name = name.replace(".log", "")
+                break
+
+    if not log_file:
+        return {"status": "no_log", "message": "No solver log file found"}
+
+    try:
+        content = log_file.read_text(errors='replace')
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to read log: {e}"}
+
+    # --- Parse residuals ---
+    # Format: "Solving for <field>, Initial residual = X, Final residual = Y, No Iterations N"
+    residual_re = re.compile(
+        r'Solving for (\w+), Initial residual = ([0-9.eE+\-]+), Final residual = ([0-9.eE+\-]+), No Iterations (\d+)'
+    )
+
+    # Track first and last initial residual per field, plus full history for key fields
+    first_residual = {}
+    last_residual = {}
+    residual_history = {}  # field -> list of initial residuals (sampled)
+    iteration_count = 0
+
+    # --- Parse time steps ---
+    time_re = re.compile(r'^Time = (\S+)', re.MULTILINE)
+    time_matches = time_re.findall(content)
+    if time_matches:
+        iteration_count = len(time_matches)
+
+    # Sampling: for large logs, only keep every Nth residual for history
+    sample_interval = max(1, iteration_count // 200)  # cap at ~200 points
+
+    current_iter = 0
+    for line in content.split('\n'):
+        time_m = re.match(r'^Time = (\S+)', line)
+        if time_m:
+            current_iter += 1
+            continue
+
+        m = residual_re.search(line)
+        if m:
+            field = m.group(1)
+            init_res = float(m.group(2))
+            final_res = float(m.group(3))
+
+            if field not in first_residual:
+                first_residual[field] = init_res
+
+            last_residual[field] = init_res
+
+            # Build sampled history for key fields
+            if field in ('Ux', 'Uy', 'Uz', 'p', 'k', 'omega', 'epsilon', 'nuTilda'):
+                if field not in residual_history:
+                    residual_history[field] = []
+                if current_iter % sample_interval == 0 or current_iter <= 5:
+                    residual_history[field].append({
+                        'iteration': current_iter,
+                        'residual': init_res
+                    })
+
+    # Build field summary
+    fields = {}
+    for field in first_residual:
+        init_val = first_residual[field]
+        final_val = last_residual[field]
+        orders = 0
+        if init_val > 0 and final_val > 0:
+            orders = round(math.log10(init_val / final_val), 1) if final_val < init_val else 0
+        fields[field] = {
+            'initial': init_val,
+            'final': final_val,
+            'orders_dropped': orders
+        }
+
+    # --- Convergence status ---
+    converged = False
+    convergence_message = ""
+    if "SIMPLE solution converged" in content:
+        cm = re.search(r'SIMPLE solution converged in (\d+) iterations', content)
+        converged = True
+        convergence_message = cm.group(0) if cm else "SIMPLE solution converged"
+    elif "PIMPLE: converged" in content:
+        converged = True
+        convergence_message = "PIMPLE converged"
+    elif iteration_count > 0:
+        # Check if residuals are low enough to be considered converged
+        all_low = all(v['final'] < 1e-4 for v in fields.values() if v['final'] > 0)
+        if all_low:
+            convergence_message = f"Residuals below 1e-4 after {iteration_count} iterations (no explicit convergence message)"
+            converged = True
+        else:
+            convergence_message = f"Ran {iteration_count} iterations without convergence"
+
+    # --- Continuity errors ---
+    cont_re = re.compile(
+        r'time step continuity errors : sum local = ([0-9.eE+\-]+), global = ([0-9.eE+\-]+)'
+    )
+    continuity = {"final_local": None, "final_global": None}
+    for m in cont_re.finditer(content):
+        continuity["final_local"] = float(m.group(1))
+        continuity["final_global"] = float(m.group(2))
+
+    # --- Force coefficient stability (last N iterations) ---
+    cd_re = re.compile(r'Cd:\t([0-9.eE+\-]+)\t')
+    cl_re = re.compile(r'Cl:\t([0-9.eE+\-]+)\t')
+
+    cd_values = [float(m.group(1)) for m in cd_re.finditer(content)]
+    cl_values = [float(m.group(1)) for m in cl_re.finditer(content)]
+
+    def calc_stats(values, n=20):
+        if len(values) < 2:
+            return {"mean": values[0] if values else 0, "std": 0, "samples": len(values)}
+        tail = values[-n:]
+        mean = sum(tail) / len(tail)
+        variance = sum((v - mean) ** 2 for v in tail) / len(tail)
+        std = variance ** 0.5
+        return {"mean": round(mean, 8), "std": round(std, 8), "samples": len(tail)}
+
+    force_stability = {
+        "cd": calc_stats(cd_values),
+        "cl": calc_stats(cl_values)
+    }
+
+    return {
+        "status": "ok",
+        "solver": solver_name,
+        "converged": converged,
+        "convergence_message": convergence_message,
+        "total_iterations": iteration_count,
+        "fields": fields,
+        "residual_history": residual_history,
+        "continuity_error": continuity,
+        "force_stability": force_stability
+    }
 
 
 # ============================================================================

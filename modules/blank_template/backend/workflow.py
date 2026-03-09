@@ -173,8 +173,11 @@ class WorkflowManager:
         
         mesh_file = mesh_files[0]
         
-        # Copy mesh file to case directory for the converter
-        case_mesh_file = case_dir / mesh_file.name
+        # Sanitize filename: replace spaces with underscores for OpenFOAM tools
+        safe_name = mesh_file.name.replace(" ", "_")
+        
+        # Copy mesh file to case directory (with sanitized name) for the converter
+        case_mesh_file = case_dir / safe_name
         if not case_mesh_file.exists():
             shutil.copy2(mesh_file, case_mesh_file)
             if log_callback:
@@ -182,9 +185,9 @@ class WorkflowManager:
         
         # Determine converter based on file extension
         if mesh_file.suffix.lower() == ".unv":
-            cmd = f"ideasUnvToFoam {mesh_file.name}"
+            cmd = f"ideasUnvToFoam {safe_name}"
         elif mesh_file.suffix.lower() == ".msh":
-            cmd = f"gmshToFoam {mesh_file.name}"
+            cmd = f"gmshToFoam {safe_name}"
         else:
             if log_callback:
                 await log_callback(f"[MESH] ERROR: Unsupported mesh format: {mesh_file.suffix}")

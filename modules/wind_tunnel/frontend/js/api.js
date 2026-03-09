@@ -121,11 +121,13 @@ const API = {
     },
 
     // Performance Analysis
-    async getPerformance(runId, mode = 'saved', excludeFraction = 0.2, timeStart = null, timeEnd = null) {
+    async getPerformance(runId, mode = 'saved', excludeFraction = 0.2, timeStart = null, timeEnd = null, refArea = null, refLength = null) {
         let url = `/api/run/${runId}/performance?mode=${mode}&exclude_fraction=${excludeFraction}`;
         if (mode === 'window' && timeStart !== null && timeEnd !== null) {
             url += `&time_start=${timeStart}&time_end=${timeEnd}`;
         }
+        if (refArea !== null) url += `&ref_area=${refArea}`;
+        if (refLength !== null) url += `&ref_length=${refLength}`;
         return this.fetch(url);
     },
 
@@ -135,5 +137,13 @@ const API = {
             method: 'POST',
             body: settings ? JSON.stringify(settings) : undefined
         });
+    },
+
+    async getRefValues(runId) {
+        return this.fetch(`/api/run/${runId}/ref-values`);
+    },
+
+    async getConvergence(runId) {
+        return this.fetch(`/api/run/${runId}/convergence`);
     }
 };
