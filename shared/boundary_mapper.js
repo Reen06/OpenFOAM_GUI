@@ -916,92 +916,89 @@ class BoundaryMapper {
     }
 
     _attachClickAssign() {
-        // Click on unassigned pool item to show assignment menu
-        this.container.querySelectorAll('.bm-pool-item:not(.bm-mapped)').forEach(item => {
-            item.addEventListener('click', (e) => {
-                // Prevent if dragging
-                if (item.classList.contains('bm-dragging')) return;
+        this.selectedForAssign = null;
 
-                // Show a quick-assign dropdown
-                this._showQuickAssign(item, item.dataset.name, item.dataset.itemType);
-            });
-        });
+        if (!this._clickAssignHandler) {
+            this._clickAssignHandler = (e) => {
+                const item = e.target.closest('.bm-pool-item:not(.bm-mapped)');
+                const dz = e.target.closest('.bm-dropzone');
+                
+                // If clicked a remove chip, cancel selection
+                if (e.target.closest('.bm-chip-remove')) {
+                    this._cancelClickAssign();
+                    return;
+                }
+
+                // 1. Clicked an unassigned pool item
+                if (item) {
+                    if (item.classList.contains('bm-dragging')) return;
+
+                    // Toggle off if clicking the already selected item
+                    if (this.selectedForAssign && this.selectedForAssign.name === item.dataset.name) {
+                        this._cancelClickAssign();
+                        return;
+                    }
+
+                    // Select this item
+                    this._cancelClickAssign();
+                    this.selectedForAssign = {
+                        el: item,
+                        name: item.dataset.name,
+                        type: item.dataset.itemType
+                    };
+                    item.classList.add('bm-selected');
+                    this.container.classList.add('bm-awaiting-target');
+                    return;
+                }
+
+                // 2. Clicked a dropzone while an item is selected
+                if (dz && this.selectedForAssign) {
+                    const data = this.selectedForAssign;
+                    const epType = dz.dataset.epType;
+
+                    if (epType && data.type !== epType) {
+                        this._showToast(`Cannot assign ${data.type} to ${epType} endpoint`, 'error');
+                        return;
+                    }
+
+                    const isMultiple = dz.dataset.multiple !== 'false';
+                    if (!isMultiple) {
+                        const existing = this._getDropzoneAssignments(dz);
+                        if (existing.length > 0) {
+                            this._showToast('This endpoint only accepts one item', 'error');
+                            return;
+                        }
+                    }
+
+                    this._assign(
+                        data.name,
+                        dz.dataset.endpoint,
+                        dz.dataset.level,
+                        dz.dataset.group || null,
+                        dz.dataset.instanceIdx !== undefined ? parseInt(dz.dataset.instanceIdx) : null
+                    );
+
+                    this._cancelClickAssign();
+                    return;
+                }
+
+                // 3. Clicked elsewhere
+                if (this.selectedForAssign) {
+                    this._cancelClickAssign();
+                }
+            };
+            this.container.addEventListener('click', this._clickAssignHandler);
+        }
     }
 
-    _showQuickAssign(anchorEl, name, itemType) {
-        // Remove any existing quick-assign
-        const existing = this.container.querySelector('.bm-quick-assign');
-        if (existing) existing.remove();
-
-        // Build list of compatible endpoints
-        const options = [];
-
-        // Top-level endpoints
-        for (const ep of (this.schema.endpoints || [])) {
-            if (ep.type === itemType) {
-                options.push({ label: ep.label, key: ep.key, level: 'top' });
+    _cancelClickAssign() {
+        if (this.selectedForAssign) {
+            if (this.selectedForAssign.el) {
+                this.selectedForAssign.el.classList.remove('bm-selected');
             }
+            this.selectedForAssign = null;
         }
-
-        // Instance endpoints
-        for (const rg of (this.schema.repeatingGroups || [])) {
-            const instances = (this.mapping.instances || {})[rg.key] || [];
-            for (let i = 0; i < instances.length; i++) {
-                for (const ep of rg.endpoints) {
-                    if (ep.type === itemType) {
-                        options.push({
-                            label: `${instances[i].name} > ${ep.label}`,
-                            key: ep.key,
-                            level: 'instance',
-                            group: rg.key,
-                            instanceIdx: i
-                        });
-                    }
-                }
-            }
-        }
-
-        if (options.length === 0) {
-            this._showToast(`No compatible endpoint for ${itemType}`, 'error');
-            return;
-        }
-
-        const menu = document.createElement('div');
-        menu.className = 'bm-quick-assign';
-        menu.innerHTML = `
-            <div class="bm-qa-title">Assign "${name}" to:</div>
-            ${options.map((o, i) => `
-                <div class="bm-qa-option" data-idx="${i}">${o.label}</div>
-            `).join('')}
-        `;
-
-        // Position near the anchor
-        const rect = anchorEl.getBoundingClientRect();
-        const parentRect = this.container.getBoundingClientRect();
-        menu.style.position = 'absolute';
-        menu.style.top = `${rect.bottom - parentRect.top + 4}px`;
-        menu.style.left = `${rect.left - parentRect.left}px`;
-
-        this.container.style.position = 'relative';
-        this.container.appendChild(menu);
-
-        // Listen for clicks
-        menu.querySelectorAll('.bm-qa-option').forEach(opt => {
-            opt.addEventListener('click', () => {
-                const o = options[parseInt(opt.dataset.idx)];
-                this._assign(name, o.key, o.level, o.group || null, o.instanceIdx !== undefined ? o.instanceIdx : null);
-                menu.remove();
-            });
-        });
-
-        // Close on outside click
-        const closeHandler = (e) => {
-            if (!menu.contains(e.target) && e.target !== anchorEl) {
-                menu.remove();
-                document.removeEventListener('click', closeHandler);
-            }
-        };
-        setTimeout(() => document.addEventListener('click', closeHandler), 0);
+        this.container.classList.remove('bm-awaiting-target');
     }
 
     _getDropzoneAssignments(dz) {
@@ -1485,37 +1482,6 @@ class BoundaryMapper {
             margin-bottom: 2px;
         }
 
-        /* Quick-assign menu */
-        .bm-quick-assign {
-            background: var(--card-bg, #1e1e3a);
-            border: 1px solid var(--border, #444);
-            border-radius: 8px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-            z-index: 100;
-            min-width: 200px;
-            overflow: hidden;
-        }
-
-        .bm-qa-title {
-            padding: 8px 12px;
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-secondary, #888);
-            border-bottom: 1px solid var(--border, #333);
-        }
-
-        .bm-qa-option {
-            padding: 8px 12px;
-            font-size: 13px;
-            color: var(--text, #e0e0e0);
-            cursor: pointer;
-            transition: background 0.1s;
-        }
-
-        .bm-qa-option:hover {
-            background: rgba(77,171,247,0.15);
-        }
-
         /* Toast */
         .bm-toast {
             position: fixed;
@@ -1594,6 +1560,37 @@ class BoundaryMapper {
             text-align: center;
             font-size: 12px;
             color: var(--text-secondary, #666);
+        }
+        
+        /* Tap-to-assign selection states */
+        .bm-pool-item.bm-selected {
+            background: rgba(77,171,247,0.2) !important;
+            border-color: rgba(77,171,247,0.6) !important;
+            box-shadow: 0 0 0 2px rgba(77,171,247,0.2);
+        }
+
+        .bm-awaiting-target .bm-dropzone {
+            border-color: rgba(77,171,247,0.4);
+            background: rgba(77,171,247,0.05);
+            cursor: pointer;
+            box-shadow: inset 0 0 8px rgba(77,171,247,0.1);
+        }
+
+        .bm-awaiting-target .bm-dropzone:hover {
+            border-color: #4dabf7;
+            background: rgba(77,171,247,0.15);
+        }
+
+        /* Mobile Column Stacking */
+        @media (max-width: 768px) {
+            .bm-body {
+                grid-template-columns: 1fr;
+            }
+            .bm-pool-col {
+                border-right: none;
+                border-bottom: 1px solid var(--border, #333);
+                max-height: 400px;
+            }
         }
     `;
 
