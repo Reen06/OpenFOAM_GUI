@@ -1,0 +1,23 @@
+{
+  "name": "OpenFOAM Wind Tunnel",
+  "short_name": "Wind Tunnel",
+  "start_url": "/windtunnel/",
+  "scope": "/windtunnel/",
+  "display": "standalone",
+  "background_color": "#0a0a14",
+  "theme_color": "#1a1a2e",
+  "icons": [
+    {
+      "src": "/windtunnel/static/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/windtunnel/static/icons/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "orientation": "any"
+}

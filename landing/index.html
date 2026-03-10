@@ -26,7 +26,140 @@
                 <h1>OpenFOAM GUI</h1>
             </div>
             <p class="tagline">Unified interface for CFD simulations</p>
-            <div class="header-actions">
+            <div class="header-actions" style="display: flex; align-items: center; gap: 12px;">
+                <!-- Install App Button -->
+                <button id="pwa-install-btn" class="view-toggle-btn"
+                    style="padding: 6px 14px; font-weight: 600; background: linear-gradient(135deg, #4ade80, #22d3ee); color: #000; border: none; border-radius: 6px; cursor: pointer; font-size: 12px;">
+                    ⬇️ Install App
+                </button>
+                <button id="pwa-installed-btn" class="view-toggle-btn"
+                    style="display: none; padding: 6px 14px; pointer-events: none; opacity: 0.7; font-size: 12px; border-radius: 6px;">
+                    ✅ Installed
+                </button>
+                <!-- LAN Toggle -->
+                <style>
+                    .lan-toggle-wrapper-landing {
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        position: relative;
+                    }
+
+                    .lan-toggle-label-landing {
+                        font-size: 11px;
+                        color: #8b949e;
+                        white-space: nowrap;
+                    }
+
+                    .lan-toggle-landing {
+                        position: relative;
+                        width: 34px;
+                        height: 18px;
+                        cursor: pointer;
+                    }
+
+                    .lan-toggle-landing input {
+                        opacity: 0;
+                        width: 0;
+                        height: 0;
+                    }
+
+                    .lan-slider-landing {
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        background: #30363d;
+                        border-radius: 18px;
+                        transition: 0.3s;
+                    }
+
+                    .lan-slider-landing:before {
+                        content: '';
+                        position: absolute;
+                        width: 14px;
+                        height: 14px;
+                        left: 2px;
+                        bottom: 2px;
+                        background: #8b949e;
+                        border-radius: 50%;
+                        transition: 0.3s;
+                    }
+
+                    .lan-toggle-landing input:checked+.lan-slider-landing {
+                        background: #238636;
+                    }
+
+                    .lan-toggle-landing input:checked+.lan-slider-landing:before {
+                        transform: translateX(16px);
+                        background: #fff;
+                    }
+
+                    .lan-panel-landing {
+                        display: none;
+                        position: absolute;
+                        top: 100%;
+                        right: 0;
+                        margin-top: 8px;
+                        padding: 12px 16px;
+                        background: #161b22;
+                        border: 1px solid #30363d;
+                        border-radius: 10px;
+                        z-index: 1000;
+                        min-width: 280px;
+                        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+                    }
+
+                    .lan-toggle-wrapper-landing:hover .lan-panel-landing.loaded {
+                        display: block;
+                    }
+
+                    .lan-url-landing {
+                        font-family: monospace;
+                        font-size: 12px;
+                        padding: 8px 10px;
+                        background: #0d1117;
+                        border-radius: 6px;
+                        color: #58a6ff;
+                        word-break: break-all;
+                        margin: 6px 0;
+                        user-select: all;
+                        cursor: pointer;
+                    }
+
+                    .lan-note-landing {
+                        font-size: 10px;
+                        color: #6e7681;
+                        margin-top: 4px;
+                    }
+
+                    .notif-toggle-wrapper-landing {
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                    }
+                </style>
+                <div class="lan-toggle-wrapper-landing">
+                    <span class="lan-toggle-label-landing">📶 LAN</span>
+                    <label class="lan-toggle-landing" title="Show LAN access URL">
+                        <input type="checkbox" id="lan-toggle-landing">
+                        <span class="lan-slider-landing"></span>
+                    </label>
+                    <div class="lan-panel-landing" id="lan-panel-landing">
+                        <div style="font-weight: 600; font-size: 12px; margin-bottom: 4px;">📱 Access from your phone
+                        </div>
+                        <div class="lan-url-landing" id="lan-url-landing">Loading...</div>
+                        <div class="lan-note-landing">Open on any device on your WiFi</div>
+                    </div>
+                </div>
+                <div class="notif-toggle-wrapper-landing">
+                    <span class="lan-toggle-label-landing">🔔</span>
+                    <label class="lan-toggle-landing" title="Enable notifications">
+                        <input type="checkbox" id="notif-toggle-landing">
+                        <span class="lan-slider-landing"></span>
+                    </label>
+                </div>
                 <button id="view-toggle-btn" class="view-toggle-btn" onclick="toggleViewMode()"
                     title="Switch to list view">☰</button>
                 <span class="version">ESI OpenFOAM v2506</span>
@@ -210,6 +343,138 @@
 
     <script src="/static/landing/js/status.js"></script>
     <script src="/static/landing/js/cases.js"></script>
+    <script>
+        // ===== Install Button Persistence =====
+        (function () {
+            const installBtn = document.getElementById('pwa-install-btn');
+            const installedBtn = document.getElementById('pwa-installed-btn');
+
+            // Check if already installed
+            if (localStorage.getItem('pwa-installed') === 'true') {
+                if (installBtn) installBtn.style.display = 'none';
+                if (installedBtn) installedBtn.style.display = 'inline-block';
+            }
+
+            // Listen for beforeinstallprompt (means NOT installed yet)
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                localStorage.removeItem('pwa-installed');
+                if (installBtn) installBtn.style.display = 'inline-block';
+                if (installedBtn) installedBtn.style.display = 'none';
+
+                installBtn.onclick = async () => {
+                    e.prompt();
+                    const { outcome } = await e.userChoice;
+                    if (outcome === 'accepted') {
+                        localStorage.setItem('pwa-installed', 'true');
+                        installBtn.style.display = 'none';
+                        if (installedBtn) installedBtn.style.display = 'inline-block';
+                    }
+                };
+            });
+
+            window.addEventListener('appinstalled', () => {
+                localStorage.setItem('pwa-installed', 'true');
+                if (installBtn) installBtn.style.display = 'none';
+                if (installedBtn) installedBtn.style.display = 'inline-block';
+            });
+        })();
+
+        // ===== LAN Toggle =====
+        (function () {
+            const toggle = document.getElementById('lan-toggle-landing');
+            const panel = document.getElementById('lan-panel-landing');
+            const urlDisplay = document.getElementById('lan-url-landing');
+            if (!toggle || !panel) return;
+
+            const hostname = window.location.hostname;
+            const isLAN = hostname !== 'localhost' && hostname !== '127.0.0.1' && hostname !== '::1';
+
+            if (isLAN || localStorage.getItem('lan-toggle-state') === 'on') {
+                toggle.checked = true;
+                fetchLAN();
+            }
+
+            toggle.addEventListener('change', () => {
+                if (toggle.checked) {
+                    localStorage.setItem('lan-toggle-state', 'on');
+                    fetchLAN();
+                } else {
+                    localStorage.setItem('lan-toggle-state', 'off');
+                    panel.classList.remove('loaded');
+                }
+            });
+
+            if (urlDisplay) {
+                urlDisplay.addEventListener('click', () => {
+                    navigator.clipboard.writeText(urlDisplay.textContent).then(() => {
+                        const orig = urlDisplay.textContent;
+                        urlDisplay.textContent = 'Copied!';
+                        urlDisplay.style.color = '#3fb950';
+                        setTimeout(() => { urlDisplay.textContent = orig; urlDisplay.style.color = '#58a6ff'; }, 1500);
+                    });
+                });
+            }
+
+            async function fetchLAN() {
+                urlDisplay.textContent = 'Detecting...';
+                try {
+                    const resp = await fetch('/api/lan-info');
+                    const data = await resp.json();
+                    urlDisplay.textContent = data.available ? data.url : 'Could not detect LAN IP';
+                    if (!data.available) urlDisplay.style.color = '#f85149';
+                } catch (e) {
+                    urlDisplay.textContent = 'Error fetching LAN info';
+                    urlDisplay.style.color = '#f85149';
+                }
+                panel.classList.add('loaded');
+            }
+        })();
+
+        // ===== Notification Toggle =====
+        (function () {
+            const toggle = document.getElementById('notif-toggle-landing');
+            if (!toggle) return;
+
+            if (localStorage.getItem('notif-enabled') === 'true' && ('Notification' in window) && Notification.permission === 'granted') {
+                toggle.checked = true;
+            }
+
+            // Use 'click' rather than 'change' and avoid 'await' before requestPermission
+            // Safari iOS requires requestPermission to be called synchronously in the gesture handler
+            toggle.addEventListener('click', (e) => {
+                if (toggle.checked) {
+                    if ('Notification' in window) {
+                        Notification.requestPermission().then((perm) => {
+                            if (perm === 'granted') {
+                                localStorage.setItem('notif-enabled', 'true');
+                                // Use SW if possible for iOS
+                                if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                                    navigator.serviceWorker.controller.postMessage({
+                                        type: 'SHOW_NOTIFICATION',
+                                        title: '🔔 Notifications enabled',
+                                        body: 'You will be notified when simulations finish or crash.'
+                                    });
+                                } else {
+                                    new Notification('🔔 Notifications enabled', { body: 'You will be notified when simulations finish or crash.' });
+                                }
+                            } else {
+                                toggle.checked = false;
+                                alert('Notification permission denied.\n\nOn iOS, you MUST add this to your Home Screen. Note: Apple also silently blocks notification prompts on LAN IPs (like 10.0.0.x) because they are not HTTPS.');
+                            }
+                        }).catch(() => {
+                            toggle.checked = false;
+                        });
+                    } else {
+                        toggle.checked = false;
+                        alert('Notifications are not supported by this browser.');
+                    }
+                } else {
+                    localStorage.setItem('notif-enabled', 'false');
+                }
+            });
+        })();
+    </script>
 </body>
 
 </html>

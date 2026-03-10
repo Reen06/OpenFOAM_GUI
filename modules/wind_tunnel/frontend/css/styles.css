@@ -872,17 +872,273 @@ input[type="checkbox"] {
     font-size: 0.8rem;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
+/* ============================================================================
+   Responsive Design — Mobile + Tablet
+   Desktop layout is completely unchanged. All mobile styles are inside @media.
+   ============================================================================ */
+
+/* ---- Tablet (max-width: 1024px) ---- */
+@media (max-width: 1024px) {
     .sidebar {
-        width: 60px;
+        width: 160px;
+    }
+
+    .content-area {
+        padding: 16px;
+    }
+
+    .form-row {
+        flex-direction: column;
+    }
+
+    .result-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ---- Phone (max-width: 768px) ---- */
+@media (max-width: 768px) {
+
+    /* Header: stack vertically, compact */
+    .header {
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px 12px;
+    }
+
+    .header-left {
+        width: 100%;
+    }
+
+    .header-left h1 {
+        font-size: 1rem;
+    }
+
+    .header-left .version {
+        display: none;
+    }
+
+    .header-right {
+        width: 100%;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: 8px !important;
+    }
+
+    /* Hide less important header buttons on very small screens */
+    #pwa-install-btn,
+    #pwa-installed-btn,
+    #pwa-update-btn {
+        font-size: 11px !important;
+        padding: 4px 8px !important;
+    }
+
+    /* LAN toggle panel adjustments */
+    .lan-info-panel {
+        right: -12px;
+        min-width: 260px;
+    }
+
+    /* Main layout: vertical stack with bottom tab bar */
+    .main-content {
+        flex-direction: column-reverse;
+        overflow: visible;
+    }
+
+    /* Sidebar becomes a bottom tab bar */
+    .sidebar {
+        width: 100%;
+        flex-direction: row;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        border-right: none;
+        border-top: 1px solid var(--border-color);
+        padding: 0;
+        gap: 0;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        z-index: 999;
+        background: var(--bg-secondary);
+    }
+
+    .tab-btn {
+        flex-direction: column;
+        gap: 2px;
+        padding: 8px 6px;
+        min-width: 64px;
+        min-height: 54px;
+        font-size: 0.7rem;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .tab-btn.active {
+        border-left: none;
+        border-top: 2px solid var(--accent-primary);
+    }
+
+    .tab-icon {
+        font-size: 1.2rem;
+    }
+
+    .tab-label {
+        font-size: 0.65rem;
+        white-space: nowrap;
+    }
+
+    /* Content area: full width, scroll, offset for bottom bar */
+    .content-area {
+        padding: 12px;
+        padding-bottom: 70px;
+        /* Space for the fixed bottom tab bar */
+        width: 100%;
+        min-height: calc(100vh - 130px);
+    }
+
+    /* Cards */
+    .card {
+        padding: 14px;
+    }
+
+    /* Buttons: larger touch targets (min 44px per Apple HIG) */
+    .btn {
+        min-height: 44px;
+        padding: 12px 16px;
+        font-size: 0.9rem;
+    }
+
+    .btn-sm {
+        min-height: 38px;
+        padding: 8px 12px;
+        font-size: 0.8rem;
+    }
+
+    .action-bar {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .action-bar .btn {
+        width: 100%;
+    }
+
+    /* Form elements: larger for touch */
+    input[type="text"],
+    input[type="number"],
+    select {
+        padding: 12px;
+        font-size: 16px;
+        /* Prevents iOS zoom on focus */
+        min-height: 44px;
+    }
+
+    input[type="checkbox"] {
+        width: 22px;
+        height: 22px;
+    }
+
+    .form-group label {
+        font-size: 0.9rem;
+    }
+
+    /* Run items: stack on mobile */
+    .run-item {
+        flex-wrap: wrap;
+        padding: 14px;
+    }
+
+    .run-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    /* Upload boxes: stack */
+    .upload-container {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .upload-box {
+        max-width: 100%;
+        width: 100%;
+    }
+
+    /* Log container: shorter on mobile */
+    .log-container {
+        height: 250px;
+    }
+
+    /* Progress stats: wrap */
+    .progress-stats {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    /* Library items: stack */
+    .library-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    /* Boundary items */
+    .patch-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    /* Tab panel headings */
+    .tab-panel h2 {
+        font-size: 1.25rem;
+    }
+
+    /* Mesh diagram: smaller font, scroll */
+    .mesh-diagram {
+        font-size: 0.65rem;
+    }
+
+    /* ParaView paths: smaller */
+    .paraview-path {
+        font-size: 0.75rem;
+    }
+
+    /* Storage stats: wrap */
+    .storage-stats {
+        flex-wrap: wrap;
+    }
+
+    /* Range sliders: bigger thumb for touch */
+    input[type="range"]::-webkit-slider-thumb {
+        width: 28px;
+        height: 28px;
+    }
+
+    input[type="range"]::-moz-range-thumb {
+        width: 28px;
+        height: 28px;
+    }
+}
+
+/* ---- Very small phones (max-width: 400px) ---- */
+@media (max-width: 400px) {
+    .header-left h1 {
+        font-size: 0.9rem;
+    }
+
+    .tab-btn {
+        min-width: 52px;
+        padding: 6px 4px;
     }
 
     .tab-label {
         display: none;
     }
 
-    .form-row {
-        flex-direction: column;
+    .content-area {
+        padding: 8px;
+        padding-bottom: 60px;
     }
 }

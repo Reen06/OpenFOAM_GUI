@@ -208,6 +208,138 @@ async def favicon():
     """Return empty favicon to prevent 404 errors."""
     return Response(content=b"", media_type="image/x-icon")
 
+@app.get("/manifest.json")
+async def serve_manifest():
+    """Serve the Web App Manifest for PWA support."""
+    return FileResponse(FRONTEND_DIR / "manifest.json", media_type="application/manifest+json")
+
+@app.get("/sw.js")
+async def serve_service_worker():
+    """Serve the Service Worker script for PWA support.
+    
+    The Service-Worker-Allowed header lets the SW control /windtunnel/ scope
+    even though sw.js lives under /windtunnel/static/ via the StaticFiles mount.
+    """
+    return FileResponse(
+        FRONTEND_DIR / "sw.js",
+        media_type="application/javascript",
+        headers={
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": "/windtunnel/"
+        }
+    )
+
+
+# ============================================================================
+# LAN Access API
+# ============================================================================
+
+@app.get("/api/lan-info")
+async def get_lan_info():
+    """Get the Windows host's LAN IP for remote access.
+    
+    Parses ipconfig output section-by-section to find the real WiFi/Ethernet
+    adapter IP, skipping VPN (NordVPN, Tailscale, WireGuard), Docker, and WSL.
+    """
+    import subprocess
+    import re
+    
+    lan_ip = None
+    
+    # Method 1: Parse ipconfig with adapter awareness
+    try:
+        result = subprocess.run(
+            ["cmd.exe", "/c", "ipconfig"],
+            capture_output=True, text=True, timeout=5,
+            encoding='utf-8', errors='replace'
+        )
+        if result.returncode == 0:
+            output = result.stdout
+            
+            # VPN/virtual adapter keywords to skip
+            skip_keywords = [
+                'nordlynx', 'nordvpn', 'tailscale', 'wireguard', 'zerotier',
+                'vpn', 'docker', 'vethernet', 'wsl', 'vmware', 'virtualbox',
+                'hyper-v', 'bluetooth', 'loopback'
+            ]
+            
+            # Split output into adapter sections
+            # Each section starts with a line like "Ethernet adapter Wi-Fi:" 
+            sections = re.split(r'\r?\n(?=\S.*adapter )', output)
+            
+            best_ip = None
+            best_priority = 999
+            
+            for section in sections:
+                section_lower = section.lower()
+                
+                # Skip VPN/virtual adapters
+                if any(kw in section_lower for kw in skip_keywords):
+                    continue
+                
+                # Extract IPv4 address from this section
+                ipv4_match = re.search(r'IPv4 Address[\.\s]*:\s*([\d.]+)', section)
+                if not ipv4_match:
+                    continue
+                
+                ip = ipv4_match.group(1)
+                
+                # Skip non-private IPs
+                if not (ip.startswith('10.') or ip.startswith('192.168.') or ip.startswith('172.')):
+                    continue
+                
+                # Skip 172.x.x.x (usually WSL/Docker virtual networks)
+                if ip.startswith('172.'):
+                    continue
+                
+                # Prioritize: Wi-Fi (1) > Ethernet (2) > other (3)
+                if 'wi-fi' in section_lower or 'wifi' in section_lower or 'wireless' in section_lower:
+                    priority = 1
+                elif 'ethernet' in section_lower:
+                    priority = 2
+                else:
+                    priority = 3
+                
+                if priority < best_priority:
+                    best_priority = priority
+                    best_ip = ip
+            
+            lan_ip = best_ip
+    except Exception as e:
+        print(f"[LAN] ipconfig parsing failed: {e}")
+    
+    # Method 2: Fallback — try PowerShell
+    if not lan_ip:
+        try:
+            result = subprocess.run(
+                ["powershell.exe", "-Command",
+                 "(Get-NetIPAddress -AddressFamily IPv4 | "
+                 "Where-Object {$_.InterfaceAlias -match 'Wi-Fi|Ethernet' "
+                 "-and $_.IPAddress -notlike '169.*'}).IPAddress"],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                lan_ip = result.stdout.strip().split('\n')[0].strip()
+        except Exception:
+            pass
+    
+    if not lan_ip:
+        return {
+            "available": False, 
+            "message": "Could not detect LAN IP. Check your WiFi connection."
+        }
+    
+    port = 6060
+    url = f"http://{lan_ip}:{port}/windtunnel/"
+    
+    return {
+        "available": True,
+        "ip": lan_ip,
+        "port": port,
+        "url": url,
+        "message": f"Access from any device on your WiFi at: {url}"
+    }
+
 
 # ============================================================================
 # User Defaults API

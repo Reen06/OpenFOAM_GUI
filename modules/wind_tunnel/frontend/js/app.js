@@ -55,8 +55,269 @@ class App {
         // Update connection status
         this.updateConnectionStatus('connected');
 
+        // Setup Progressive Web App (PWA) Support
+        this.setupPWA();
+
+        // Setup LAN Access Toggle
+        this.setupLANToggle();
+
+        // Setup Notifications
+        this.setupNotifications();
+
         // Check for run_id query param (from landing page "View" button)
         this.handleQueryParams();
+    }
+
+    // ==================== PWA Setup ====================
+    setupPWA() {
+        const installBtn = document.getElementById('pwa-install-btn');
+        const installedBtn = document.getElementById('pwa-installed-btn');
+        let deferredPrompt = null;
+
+        // 1. Register Service Worker and detect updates
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/windtunnel/static/sw.js', { scope: '/windtunnel/' }).then(reg => {
+                console.log('Service Worker registered for PWA:', reg.scope);
+
+                // Check for updates periodically (every 60s — great for development)
+                setInterval(() => reg.update(), 60 * 1000);
+
+                // Detect when a new SW version is waiting to activate
+                reg.addEventListener('updatefound', () => {
+                    const newWorker = reg.installing;
+                    if (!newWorker) return;
+
+                    newWorker.addEventListener('statechange', () => {
+                        // A new SW is installed and waiting — show the update button
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            console.log('New version available — showing update button');
+                            const updateBtn = document.getElementById('pwa-update-btn');
+                            if (updateBtn) {
+                                updateBtn.style.display = 'inline-block';
+                                updateBtn.addEventListener('click', () => {
+                                    window.location.reload();
+                                });
+                            }
+                        }
+                    });
+                });
+            }).catch(err => {
+                console.warn('Service Worker registration failed:', err);
+            });
+
+            // Also handle the case where the SW activates and takes control (skipWaiting)
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                // If the page isn't being reloaded already by the user, show the badge
+                const updateBtn = document.getElementById('pwa-update-btn');
+                if (updateBtn && updateBtn.style.display !== 'inline-block') {
+                    updateBtn.style.display = 'inline-block';
+                    updateBtn.addEventListener('click', () => {
+                        window.location.reload();
+                    });
+                }
+            });
+        }
+
+        // 2. Detect if already running as standalone app
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+        if (isStandalone) {
+            console.log('Running in standalone PWA mode');
+            localStorage.setItem('pwa-installed', 'true');
+            if (installedBtn) installedBtn.style.display = 'inline-block';
+            if (installBtn) installBtn.style.display = 'none';
+            return; // No need to set up install button in standalone mode
+        }
+
+        // 3. Check if previously installed (persists across refreshes)
+        const wasInstalled = localStorage.getItem('pwa-installed') === 'true';
+        if (wasInstalled) {
+            if (installBtn) installBtn.style.display = 'none';
+            if (installedBtn) installedBtn.style.display = 'inline-block';
+        }
+
+        // 4. Button click handler (only matters if button is visible)
+        if (installBtn) {
+            installBtn.addEventListener('click', async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    console.log('User response to PWA install: ' + outcome);
+                    deferredPrompt = null;
+                    if (outcome === 'accepted') {
+                        localStorage.setItem('pwa-installed', 'true');
+                        installBtn.style.display = 'none';
+                        if (installedBtn) installedBtn.style.display = 'inline-block';
+                    }
+                } else {
+                    alert('To install this app:\n\n1. Click the browser menu (\u22ee) in the top right\n2. Select "Install OpenFOAM Wind Tunnel"\n   (or "Add to Home screen" on mobile)\n\nIf that option is not available, make sure you are using Chrome or Edge.');
+                }
+            });
+        }
+
+        // 5. Intercept Chrome's beforeinstallprompt event
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            // App is installable — clear the installed flag (user may have uninstalled)
+            // and show the install button
+            localStorage.removeItem('pwa-installed');
+            if (installBtn) installBtn.style.display = 'inline-block';
+            if (installedBtn) installedBtn.style.display = 'none';
+        });
+
+        // 6. Handle successful installation
+        window.addEventListener('appinstalled', () => {
+            console.log('PWA installation successful');
+            localStorage.setItem('pwa-installed', 'true');
+            if (installBtn) installBtn.style.display = 'none';
+            if (installedBtn) installedBtn.style.display = 'inline-block';
+            deferredPrompt = null;
+        });
+    }
+
+    // ==================== LAN Access Toggle ====================
+    setupLANToggle() {
+        const toggle = document.getElementById('lan-toggle-input');
+        const panel = document.getElementById('lan-info-panel');
+        const urlDisplay = document.getElementById('lan-url');
+        if (!toggle || !panel) return;
+
+        // Auto-detect LAN access or restore saved state
+        const hostname = window.location.hostname;
+        const isLANAccess = hostname !== 'localhost' && hostname !== '127.0.0.1' && hostname !== '::1';
+        const savedState = localStorage.getItem('lan-toggle-state');
+        
+        if (isLANAccess || savedState === 'on') {
+            toggle.checked = true;
+            this.fetchLANInfo(panel, urlDisplay);
+        }
+
+        toggle.addEventListener('change', () => {
+            if (toggle.checked) {
+                localStorage.setItem('lan-toggle-state', 'on');
+                this.fetchLANInfo(panel, urlDisplay);
+            } else {
+                localStorage.setItem('lan-toggle-state', 'off');
+                panel.classList.remove('loaded');
+            }
+        });
+
+        // Click on URL to copy
+        if (urlDisplay) {
+            urlDisplay.addEventListener('click', () => {
+                const url = urlDisplay.textContent;
+                navigator.clipboard.writeText(url).then(() => {
+                    const original = urlDisplay.textContent;
+                    urlDisplay.textContent = 'Copied!';
+                    urlDisplay.style.color = '#3fb950';
+                    setTimeout(() => {
+                        urlDisplay.textContent = original;
+                        urlDisplay.style.color = '#58a6ff';
+                    }, 1500);
+                });
+            });
+        }
+    }
+
+    async fetchLANInfo(panel, urlDisplay) {
+        // Add 'loaded' class — CSS :hover rule on the wrapper shows it on hover
+        if (urlDisplay) urlDisplay.textContent = 'Detecting...';
+        try {
+            const response = await fetch('api/lan-info');
+            const data = await response.json();
+            if (data.available && urlDisplay) {
+                urlDisplay.textContent = data.url;
+                panel.classList.add('loaded');
+            } else if (urlDisplay) {
+                urlDisplay.textContent = 'Could not detect LAN IP';
+                urlDisplay.style.color = '#f85149';
+                panel.classList.add('loaded');
+            }
+        } catch (err) {
+            if (urlDisplay) {
+                urlDisplay.textContent = 'Error fetching LAN info';
+                urlDisplay.style.color = '#f85149';
+                panel.classList.add('loaded');
+            }
+        }
+    }
+
+    // ==================== Notifications ====================
+    setupNotifications() {
+        const toggle = document.getElementById('notif-toggle-input');
+        if (!toggle) return;
+
+        this.notificationsEnabled = false;
+
+        // Restore saved state
+        if (localStorage.getItem('notif-enabled') === 'true') {
+            if (Notification.permission === 'granted') {
+                toggle.checked = true;
+                this.notificationsEnabled = true;
+            }
+        }
+
+        // Use 'click' rather than 'change' and avoid 'await' before requestPermission
+        // Safari iOS requires requestPermission to be called synchronously in the gesture handler
+        toggle.addEventListener('click', () => {
+            if (toggle.checked) {
+                // Request permission
+                if ('Notification' in window) {
+                    Notification.requestPermission().then(permission => {
+                        if (permission === 'granted') {
+                            this.notificationsEnabled = true;
+                            localStorage.setItem('notif-enabled', 'true');
+                            // Use a short delay to ensure SW is ready
+                            setTimeout(() => {
+                                this.sendNotification('🔔 Notifications enabled', 'You will be notified when simulations finish or crash.');
+                            }, 500);
+                        } else {
+                            toggle.checked = false;
+                            alert('Notification permission was denied.\n\nOn iOS, you MUST add this to your Home Screen. Note: Apple also silently blocks notification prompts on LAN IPs (like 10.0.0.x) because they are not HTTPS.');
+                        }
+                    }).catch(e => {
+                        toggle.checked = false;
+                        console.warn('Error requesting notification permission:', e);
+                    });
+                } else {
+                    toggle.checked = false;
+                    alert('Your browser does not support notifications.');
+                }
+            } else {
+                this.notificationsEnabled = false;
+                localStorage.setItem('notif-enabled', 'false');
+            }
+        });
+    }
+
+    sendNotification(title, body) {
+        if (!this.notificationsEnabled) return;
+        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+        
+        // Use service worker to show notification (required for iOS PWA)
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+                type: 'SHOW_NOTIFICATION',
+                title: title,
+                body: body,
+                icon: '/windtunnel/static/icons/icon.svg',
+                tag: 'openfoam-gui'
+            });
+            return;
+        }
+        
+        // Fallback for non-SW contexts
+        try {
+            const notif = new Notification(title, {
+                body: body,
+                icon: '/windtunnel/static/icons/icon.svg',
+                tag: 'openfoam-gui',
+                requireInteraction: false
+            });
+            setTimeout(() => notif.close(), 8000);
+        } catch (e) {
+            console.warn('Notification failed:', e);
+        }
     }
 
     handleQueryParams() {
@@ -1764,6 +2025,9 @@ class App {
             // Show View Results button
             const resultsContainer = document.getElementById('sim-results-btn-container');
             if (resultsContainer) resultsContainer.style.display = 'block';
+
+            // Send desktop/mobile notification
+            this.sendNotification('✅ Simulation Complete', data.message || `Run finished successfully.`);
         });
 
         this.ws.onError((data) => {
@@ -1774,6 +2038,9 @@ class App {
             document.getElementById('stop-simulation-btn').disabled = true;
             const errStepEl = document.getElementById('progress-step');
             if (errStepEl) errStepEl.textContent = '❌ Error';
+
+            // Send desktop/mobile notification
+            this.sendNotification('❌ Simulation Error', data.message || 'A simulation encountered an error.');
         });
 
         this.ws.onConnection((status) => {

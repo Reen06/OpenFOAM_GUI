@@ -79,6 +79,63 @@ async def home_redirect():
     return FileResponse(LANDING_DIR / "index.html")
 
 
+@app.get("/api/lan-info")
+async def main_lan_info():
+    """Get the Windows host's LAN IP for remote access (landing page version)."""
+    import subprocess
+    import re
+    
+    lan_ip = None
+    try:
+        result = subprocess.run(
+            ["cmd.exe", "/c", "ipconfig"],
+            capture_output=True, text=True, timeout=5,
+            encoding='utf-8', errors='replace'
+        )
+        if result.returncode == 0:
+            skip_keywords = [
+                'nordlynx', 'nordvpn', 'tailscale', 'wireguard', 'zerotier',
+                'vpn', 'docker', 'vethernet', 'wsl', 'vmware', 'virtualbox',
+                'hyper-v', 'bluetooth', 'loopback'
+            ]
+            sections = re.split(r'\r?\n(?=\S.*adapter )', result.stdout)
+            best_ip = None
+            best_priority = 999
+            for section in sections:
+                section_lower = section.lower()
+                if any(kw in section_lower for kw in skip_keywords):
+                    continue
+                ipv4_match = re.search(r'IPv4 Address[\.\s]*:\s*([\d.]+)', section)
+                if not ipv4_match:
+                    continue
+                ip = ipv4_match.group(1)
+                if ip.startswith('172.') or ip.startswith('127.'):
+                    continue
+                if 'wi-fi' in section_lower or 'wifi' in section_lower or 'wireless' in section_lower:
+                    priority = 1
+                elif 'ethernet' in section_lower:
+                    priority = 2
+                else:
+                    priority = 3
+                if priority < best_priority:
+                    best_priority = priority
+                    best_ip = ip
+            lan_ip = best_ip
+    except Exception:
+        pass
+    
+    if not lan_ip:
+        return {"available": False, "message": "Could not detect LAN IP"}
+    
+    return {
+        "available": True,
+        "ip": lan_ip,
+        "port": 6060,
+        "url": f"http://{lan_ip}:6060/",
+        "message": f"Access from any device on your WiFi"
+    }
+
+
 # ============================================================================
 # Case Management API
 # ============================================================================
