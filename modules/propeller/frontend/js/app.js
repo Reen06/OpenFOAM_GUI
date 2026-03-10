@@ -55,6 +55,23 @@ class App {
         // Update connection status
         this.updateConnectionStatus('connected');
 
+        // Setup Progressive Web App (PWA) Support
+        this.setupPWA();
+
+        // Setup LAN Access Toggle
+        this.setupLANToggle();
+
+        // Setup Notifications
+        this.setupNotifications();
+
+        // Wire up View Results button
+        const viewResultsBtn = document.getElementById('view-results-btn');
+        if (viewResultsBtn) {
+            viewResultsBtn.addEventListener('click', () => {
+                document.querySelector('[data-tab="performance"]')?.click();
+            });
+        }
+
         // Check for run_id query param (from landing page "View" button)
         this.handleQueryParams();
     }
@@ -77,6 +94,182 @@ class App {
                 // Clean up URL
                 window.history.replaceState({}, document.title, window.location.pathname);
             }, 500);
+        }
+    }
+
+    // ==================== PWA Setup ====================
+    setupPWA() {
+        const installBtn = document.getElementById('pwa-install-btn');
+        const installedBtn = document.getElementById('pwa-installed-btn');
+        let deferredPrompt = null;
+
+        // Detect if already running as standalone app
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+        if (isStandalone) {
+            localStorage.setItem('pwa-installed', 'true');
+            if (installedBtn) installedBtn.style.display = 'inline-block';
+            if (installBtn) installBtn.style.display = 'none';
+            return;
+        }
+
+        // Check if previously installed
+        const wasInstalled = localStorage.getItem('pwa-installed') === 'true';
+        if (wasInstalled) {
+            if (installBtn) installBtn.style.display = 'none';
+            if (installedBtn) installedBtn.style.display = 'inline-block';
+        }
+
+        // Button click handler
+        if (installBtn) {
+            installBtn.addEventListener('click', async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    deferredPrompt = null;
+                    if (outcome === 'accepted') {
+                        localStorage.setItem('pwa-installed', 'true');
+                        installBtn.style.display = 'none';
+                        if (installedBtn) installedBtn.style.display = 'inline-block';
+                    }
+                } else {
+                    alert('To install this app:\n\n1. Click the browser menu (\u22ee) in the top right\n2. Select "Install OpenFOAM Propeller"\n   (or "Add to Home screen" on mobile)\n\nIf that option is not available, make sure you are using Chrome or Edge.');
+                }
+            });
+        }
+
+        // Intercept Chrome's beforeinstallprompt event
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            localStorage.removeItem('pwa-installed');
+            if (installBtn) installBtn.style.display = 'inline-block';
+            if (installedBtn) installedBtn.style.display = 'none';
+        });
+
+        // Handle successful installation
+        window.addEventListener('appinstalled', () => {
+            localStorage.setItem('pwa-installed', 'true');
+            if (installBtn) installBtn.style.display = 'none';
+            if (installedBtn) installedBtn.style.display = 'inline-block';
+            deferredPrompt = null;
+        });
+    }
+
+    // ==================== LAN Access Toggle ====================
+    setupLANToggle() {
+        const toggle = document.getElementById('lan-toggle-input');
+        const panel = document.getElementById('lan-info-panel');
+        const urlDisplay = document.getElementById('lan-url');
+        if (!toggle || !panel) return;
+
+        const hostname = window.location.hostname;
+        const isLANAccess = hostname !== 'localhost' && hostname !== '127.0.0.1' && hostname !== '::1';
+        const savedState = localStorage.getItem('lan-toggle-state');
+
+        if (isLANAccess || savedState === 'on') {
+            toggle.checked = true;
+            this.fetchLANInfo(panel, urlDisplay);
+        }
+
+        toggle.addEventListener('change', () => {
+            if (toggle.checked) {
+                localStorage.setItem('lan-toggle-state', 'on');
+                this.fetchLANInfo(panel, urlDisplay);
+            } else {
+                localStorage.setItem('lan-toggle-state', 'off');
+                panel.classList.remove('loaded');
+            }
+        });
+
+        if (urlDisplay) {
+            urlDisplay.addEventListener('click', () => {
+                const url = urlDisplay.textContent;
+                navigator.clipboard.writeText(url).then(() => {
+                    const original = urlDisplay.textContent;
+                    urlDisplay.textContent = 'Copied!';
+                    urlDisplay.style.color = '#3fb950';
+                    setTimeout(() => {
+                        urlDisplay.textContent = original;
+                        urlDisplay.style.color = '#58a6ff';
+                    }, 1500);
+                });
+            });
+        }
+    }
+
+    async fetchLANInfo(panel, urlDisplay) {
+        if (urlDisplay) urlDisplay.textContent = 'Detecting...';
+        try {
+            const response = await fetch('api/lan-info');
+            const data = await response.json();
+            if (data.available && urlDisplay) {
+                urlDisplay.textContent = data.url;
+                panel.classList.add('loaded');
+            } else if (urlDisplay) {
+                urlDisplay.textContent = 'Could not detect LAN IP';
+                urlDisplay.style.color = '#f85149';
+                panel.classList.add('loaded');
+            }
+        } catch (err) {
+            if (urlDisplay) {
+                urlDisplay.textContent = 'Error fetching LAN info';
+                urlDisplay.style.color = '#f85149';
+                panel.classList.add('loaded');
+            }
+        }
+    }
+
+    // ==================== Notifications ====================
+    setupNotifications() {
+        const toggle = document.getElementById('notif-toggle-input');
+        if (!toggle) return;
+
+        this.notificationsEnabled = false;
+
+        if (localStorage.getItem('notif-enabled') === 'true') {
+            if (Notification.permission === 'granted') {
+                toggle.checked = true;
+                this.notificationsEnabled = true;
+            }
+        }
+
+        toggle.addEventListener('click', () => {
+            if (toggle.checked) {
+                if ('Notification' in window) {
+                    Notification.requestPermission().then(permission => {
+                        if (permission === 'granted') {
+                            this.notificationsEnabled = true;
+                            localStorage.setItem('notif-enabled', 'true');
+                            setTimeout(() => {
+                                this.sendNotification('\ud83d\udd14 Notifications enabled', 'You will be notified when simulations finish or crash.');
+                            }, 500);
+                        } else {
+                            toggle.checked = false;
+                            alert('Notification permission was denied.');
+                        }
+                    }).catch(e => {
+                        toggle.checked = false;
+                        console.warn('Error requesting notification permission:', e);
+                    });
+                } else {
+                    toggle.checked = false;
+                    alert('Your browser does not support notifications.');
+                }
+            } else {
+                this.notificationsEnabled = false;
+                localStorage.setItem('notif-enabled', 'false');
+            }
+        });
+    }
+
+    sendNotification(title, body) {
+        if (!this.notificationsEnabled) return;
+        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+        try {
+            const notif = new Notification(title, { body, tag: 'openfoam-gui', requireInteraction: false });
+            setTimeout(() => notif.close(), 8000);
+        } catch (e) {
+            console.warn('Notification failed:', e);
         }
     }
 
@@ -2104,6 +2297,26 @@ class App {
                 this.currentSimTime = parseFloat(timeMatch[1]);
                 this.iterationCount++;
             }
+
+            // Parse Courant number (e.g., "Courant Number mean: 0.123 max: 0.456")
+            const coMatch = data.line.match(/Courant Number.*max:\s*([\d.e+-]+)/);
+            if (coMatch) {
+                const coEl = document.getElementById('progress-courant');
+                if (coEl) {
+                    coEl.textContent = `Co: ${parseFloat(coMatch[1]).toFixed(3)}`;
+                    coEl.style.display = '';
+                }
+            }
+
+            // Parse deltaT (e.g., "deltaT = 1.23e-05")
+            const dtMatch = data.line.match(/^deltaT\s*=\s*([\d.e+-]+)/);
+            if (dtMatch) {
+                const dtEl = document.getElementById('progress-delta-t');
+                if (dtEl) {
+                    dtEl.textContent = `\u0394T: ${parseFloat(dtMatch[1]).toExponential(2)}`;
+                    dtEl.style.display = '';
+                }
+            }
         });
 
         this.ws.onProgress((data) => {
@@ -2119,6 +2332,18 @@ class App {
             document.getElementById('progress-step').textContent = 'Complete!';
             document.getElementById('progress-fill').style.width = '100%';
             document.getElementById('progress-eta').textContent = 'Done';
+
+            // Show View Results button
+            const resultsBtn = document.getElementById('sim-results-btn-container');
+            if (resultsBtn) resultsBtn.style.display = 'block';
+
+            // Show performance tab
+            const perfTab = document.getElementById('performance-tab-btn');
+            if (perfTab) perfTab.style.display = '';
+
+            // Send notification
+            this.sendNotification('\u2705 Simulation Complete', data.message || 'Your propeller simulation has finished.');
+
             this.rmLoadRuns();
         });
 
@@ -2130,6 +2355,9 @@ class App {
             document.getElementById('run-simulation-btn').disabled = false;
             document.getElementById('stop-simulation-btn').disabled = true;
             document.getElementById('progress-container').style.display = 'none';
+
+            // Send notification
+            this.sendNotification('\u274c Simulation Error', data.message || 'Your propeller simulation has encountered an error.');
         });
 
         this.ws.onConnection((status) => {

@@ -22,7 +22,61 @@
                 </a>
                 <span class="version">v1.0 | ESI OpenFOAM v2506</span>
             </div>
-            <div class="header-right">
+            <div class="header-right" style="display: flex; align-items: center; gap: 16px;">
+                <button id="pwa-install-btn" class="btn btn-primary btn-sm"
+                    style="padding: 6px 14px; font-weight: 600; background: linear-gradient(135deg, #4ade80, #22d3ee); color: #000; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">
+                    ⬇️ Install App
+                </button>
+                <button id="pwa-installed-btn" class="btn btn-secondary btn-sm"
+                    style="display: none; padding: 6px 14px; pointer-events: none; opacity: 0.7; font-size: 13px; border-radius: 6px;">
+                    ✅ Installed
+                </button>
+                <button id="pwa-update-btn" class="btn btn-sm"
+                    style="display: none; padding: 6px 14px; font-weight: 600; background: linear-gradient(135deg, #f59e0b, #ef4444); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; animation: pwa-pulse 2s infinite;">
+                    🔄 Update Available
+                </button>
+                <style>
+                    @keyframes pwa-pulse {
+                        0%, 100% { opacity: 1; }
+                        50% { opacity: 0.7; }
+                    }
+                    /* LAN Toggle Switch */
+                    .lan-toggle-wrapper { display: flex; align-items: center; gap: 8px; position: relative; }
+                    .lan-toggle-label { font-size: 12px; color: var(--text-muted, #6e7681); white-space: nowrap; }
+                    .lan-toggle { position: relative; width: 36px; height: 20px; cursor: pointer; }
+                    .lan-toggle input { opacity: 0; width: 0; height: 0; }
+                    .lan-slider { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #30363d; border-radius: 20px; transition: 0.3s; }
+                    .lan-slider:before { content: ''; position: absolute; width: 16px; height: 16px; left: 2px; bottom: 2px; background: #8b949e; border-radius: 50%; transition: 0.3s; }
+                    .lan-toggle input:checked + .lan-slider { background: #238636; }
+                    .lan-toggle input:checked + .lan-slider:before { transform: translateX(16px); background: #fff; }
+                    .lan-info-panel { display: none; position: absolute; top: 100%; right: 0; margin-top: 8px; padding: 14px 18px; background: var(--bg-secondary, #161b22); border: 1px solid var(--border-color, #30363d); border-radius: 10px; z-index: 1000; min-width: 300px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+                    .lan-toggle-wrapper:hover .lan-info-panel.loaded { display: block; }
+                    .lan-url { font-family: monospace; font-size: 13px; padding: 8px 12px; background: var(--bg-primary, #0d1117); border-radius: 6px; color: #58a6ff; word-break: break-all; margin: 8px 0; user-select: all; cursor: pointer; }
+                    .lan-note { font-size: 11px; color: var(--text-muted, #6e7681); margin-top: 6px; }
+                    /* Notification Toggle */
+                    .notif-toggle-wrapper { display: flex; align-items: center; gap: 8px; }
+                    .notif-toggle-label { font-size: 12px; color: var(--text-muted, #6e7681); white-space: nowrap; }
+                </style>
+                <div class="lan-toggle-wrapper">
+                    <span class="lan-toggle-label">📶 LAN</span>
+                    <label class="lan-toggle" title="Enable LAN access for phones/tablets on your WiFi">
+                        <input type="checkbox" id="lan-toggle-input">
+                        <span class="lan-slider"></span>
+                    </label>
+                    <div class="lan-info-panel" id="lan-info-panel">
+                        <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px;">📱 Access from your phone</div>
+                        <div class="lan-url" id="lan-url" title="Click to copy">Loading...</div>
+                        <div class="lan-note">Open this URL on any device connected to your WiFi.</div>
+                        <div class="lan-note" style="margin-top: 4px;">⚠️ First time? Run <code>enable_lan.bat</code> as Administrator.</div>
+                    </div>
+                </div>
+                <div class="notif-toggle-wrapper">
+                    <span class="notif-toggle-label">🔔</span>
+                    <label class="lan-toggle" title="Enable desktop/mobile notifications for run events">
+                        <input type="checkbox" id="notif-toggle-input">
+                        <span class="lan-slider"></span>
+                    </label>
+                </div>
                 <div class="status-indicator" id="connection-status">
                     <span class="status-dot"></span>
                     <span class="status-text">Ready</span>
@@ -54,7 +108,7 @@
                     <span class="tab-icon">⚙️</span>
                     <span class="tab-label">Solver + Controls</span>
                 </button>
-                <button class="tab-btn" data-tab="performance" id="performance-tab-btn" style="display: none;">
+                <button class="tab-btn" data-tab="performance" id="performance-tab-btn">
                     <span class="tab-icon">📊</span>
                     <span class="tab-label">Performance</span>
                 </button>
@@ -404,6 +458,8 @@
                         <div class="progress-stats">
                             <span id="progress-time">Time: 0m 0s</span>
                             <span id="progress-iter">SimTime: 0</span>
+                            <span id="progress-courant" style="display: none;">Co: --</span>
+                            <span id="progress-delta-t" style="display: none;">ΔT: --</span>
                             <span id="progress-eta">ETA: --</span>
                         </div>
                         <div class="storage-stats">
@@ -411,6 +467,12 @@
                             <span id="est-size-container" style="display: none;">📈 Est: <span
                                     id="estimated-total-size">-- MB</span></span>
                         </div>
+                    </div>
+
+                    <div id="sim-results-btn-container" style="display: none; margin-top: 12px;">
+                        <button class="btn btn-primary" id="view-results-btn" style="width: 100%;">
+                            📊 View Results
+                        </button>
                     </div>
 
                     <div class="paraview-info" id="paraview-info" style="display: none;">
@@ -871,6 +933,115 @@
     <script src="static/js/api.js"></script>
     <script src="static/js/websocket.js"></script>
     <script src="static/js/app.js"></script>
+
+    <!-- FAB Next Tab -->
+    <style>
+        .fab-next {
+            position: fixed;
+            z-index: 9999;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #58a6ff, #3fb950);
+            color: #fff;
+            border: none;
+            font-size: 20px;
+            cursor: grab;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: box-shadow 0.2s, transform 0.15s;
+            user-select: none;
+            touch-action: none;
+        }
+        .fab-next:hover { box-shadow: 0 6px 20px rgba(88, 166, 255, 0.5); transform: scale(1.08); }
+        .fab-next:active { cursor: grabbing; transform: scale(0.95); }
+        .fab-next .fab-tooltip {
+            display: none; position: absolute; white-space: nowrap;
+            background: #161b22; color: #e6edf3; padding: 4px 10px;
+            border-radius: 6px; font-size: 11px; pointer-events: none; border: 1px solid #30363d;
+        }
+        .fab-next:hover .fab-tooltip { display: block; }
+        .fab-next.corner-br .fab-tooltip { bottom: 54px; right: 0; }
+        .fab-next.corner-bl .fab-tooltip { bottom: 54px; left: 0; }
+        .fab-next.corner-tr .fab-tooltip { top: 54px; right: 0; }
+        .fab-next.corner-tl .fab-tooltip { top: 54px; left: 0; }
+        @media (max-width: 768px) {
+            .fab-next.corner-br, .fab-next.corner-bl { bottom: 70px !important; }
+        }
+    </style>
+    <button class="fab-next corner-br" id="fab-next-tab" style="bottom: 24px; right: 24px;">
+        →
+        <span class="fab-tooltip">Next tab</span>
+    </button>
+    <script>
+        (function () {
+            const fab = document.getElementById('fab-next-tab');
+            if (!fab) return;
+            const MARGIN = 24, MOBILE_BOTTOM = 70;
+            const corners = {
+                'br': () => ({ bottom: isMobile() ? MOBILE_BOTTOM : MARGIN, right: MARGIN, top: 'auto', left: 'auto' }),
+                'bl': () => ({ bottom: isMobile() ? MOBILE_BOTTOM : MARGIN, left: MARGIN, top: 'auto', right: 'auto' }),
+                'tr': () => ({ top: MARGIN + 60, right: MARGIN, bottom: 'auto', left: 'auto' }),
+                'tl': () => ({ top: MARGIN + 60, left: MARGIN, bottom: 'auto', right: 'auto' })
+            };
+            function isMobile() { return window.innerWidth <= 768; }
+            let currentCorner = localStorage.getItem('fab-corner') || 'br';
+            applyCorner(currentCorner);
+            fab.addEventListener('click', (e) => {
+                if (fab._wasDragged) { fab._wasDragged = false; return; }
+                const tabs = Array.from(document.querySelectorAll('.tab-btn'));
+                const activeIdx = tabs.findIndex(t => t.classList.contains('active'));
+                const nextIdx = (activeIdx + 1) % tabs.length;
+                tabs[nextIdx].click();
+                fab.style.transform = 'scale(1.2)';
+                setTimeout(() => fab.style.transform = '', 200);
+            });
+            let dragStartX, dragStartY, isDragging = false;
+            const DRAG_THRESHOLD = 8;
+            fab.addEventListener('pointerdown', (e) => {
+                dragStartX = e.clientX; dragStartY = e.clientY;
+                isDragging = false; fab._wasDragged = false;
+                fab.setPointerCapture(e.pointerId);
+            });
+            fab.addEventListener('pointermove', (e) => {
+                if (dragStartX === undefined) return;
+                if (Math.abs(e.clientX - dragStartX) > DRAG_THRESHOLD || Math.abs(e.clientY - dragStartY) > DRAG_THRESHOLD) isDragging = true;
+                if (isDragging) {
+                    fab.style.position = 'fixed';
+                    fab.style.left = (e.clientX - 24) + 'px'; fab.style.top = (e.clientY - 24) + 'px';
+                    fab.style.right = 'auto'; fab.style.bottom = 'auto';
+                }
+            });
+            fab.addEventListener('pointerup', (e) => {
+                if (isDragging) {
+                    fab._wasDragged = true;
+                    const corner = (e.clientY < window.innerHeight / 2 ? 't' : 'b') + (e.clientX < window.innerWidth / 2 ? 'l' : 'r');
+                    currentCorner = corner; localStorage.setItem('fab-corner', corner); applyCorner(corner);
+                }
+                dragStartX = undefined; isDragging = false;
+            });
+            function applyCorner(corner) {
+                const pos = corners[corner]();
+                Object.assign(fab.style, {
+                    top: typeof pos.top === 'number' ? pos.top + 'px' : pos.top,
+                    bottom: typeof pos.bottom === 'number' ? pos.bottom + 'px' : pos.bottom,
+                    left: typeof pos.left === 'number' ? pos.left + 'px' : pos.left,
+                    right: typeof pos.right === 'number' ? pos.right + 'px' : pos.right
+                });
+                fab.className = 'fab-next corner-' + corner;
+            }
+            document.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter') return;
+                const tag = document.activeElement?.tagName?.toLowerCase();
+                if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+                if (document.activeElement?.isContentEditable) return;
+                if (document.querySelector('.modal-overlay[style*="display: flex"], .modal-overlay[style*="display: block"]')) return;
+                e.preventDefault(); fab.click();
+            });
+        })();
+    </script>
 </body>
 
 </html>
