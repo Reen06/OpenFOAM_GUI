@@ -3,16 +3,14 @@
   "short_name": "OpenFOAM",
   "start_url": "/",
   "scope": "/",
-  "id": "/",
   "display": "standalone",
   "background_color": "#0a0a14",
   "theme_color": "#1a1a2e",
   "icons": [
     {
       "src": "/windtunnel/static/icons/icon.svg",
-      "type": "image/svg+xml",
       "sizes": "any",
-      "purpose": "any"
+      "type": "image/svg+xml"
     },
     {
       "src": "/windtunnel/static/icons/icon-192.png",

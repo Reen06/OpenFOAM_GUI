@@ -74,68 +74,33 @@ class App {
         const installedBtn = document.getElementById('pwa-installed-btn');
         let deferredPrompt = null;
 
-        // 1. Register Service Worker and detect updates
+        // 1. Register Service Worker (required by Chrome for PWA install prompt)
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/windtunnel/static/sw.js', { scope: '/windtunnel/' }).then(reg => {
-                console.log('Service Worker registered for PWA:', reg.scope);
-
-                // Check for updates periodically (every 60s — great for development)
-                setInterval(() => reg.update(), 60 * 1000);
-
-                // Detect when a new SW version is waiting to activate
-                reg.addEventListener('updatefound', () => {
-                    const newWorker = reg.installing;
-                    if (!newWorker) return;
-
-                    newWorker.addEventListener('statechange', () => {
-                        // A new SW is installed and waiting — show the update button
-                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            console.log('New version available — showing update button');
-                            const updateBtn = document.getElementById('pwa-update-btn');
-                            if (updateBtn) {
-                                updateBtn.style.display = 'inline-block';
-                                updateBtn.addEventListener('click', () => {
-                                    window.location.reload();
-                                });
-                            }
-                        }
-                    });
-                });
-            }).catch(err => {
-                console.warn('Service Worker registration failed:', err);
-            });
-
-            // Also handle the case where the SW activates and takes control (skipWaiting)
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                // If the page isn't being reloaded already by the user, show the badge
-                const updateBtn = document.getElementById('pwa-update-btn');
-                if (updateBtn && updateBtn.style.display !== 'inline-block') {
-                    updateBtn.style.display = 'inline-block';
-                    updateBtn.addEventListener('click', () => {
-                        window.location.reload();
-                    });
-                }
-            });
+            navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                .then(reg => console.log('SW registered:', reg.scope))
+                .catch(err => console.warn('SW registration failed:', err));
         }
 
-        // 2. Detect if already running as standalone app
+        // 1. Detect if already running as standalone (installed) app
         const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
         if (isStandalone) {
             console.log('Running in standalone PWA mode');
-            localStorage.setItem('pwa-installed', 'true');
             if (installedBtn) installedBtn.style.display = 'inline-block';
             if (installBtn) installBtn.style.display = 'none';
-            return; // No need to set up install button in standalone mode
+            return;
         }
 
-        // 3. Check if previously installed (persists across refreshes)
-        const wasInstalled = localStorage.getItem('pwa-installed') === 'true';
-        if (wasInstalled) {
-            if (installBtn) installBtn.style.display = 'none';
-            if (installedBtn) installedBtn.style.display = 'inline-block';
-        }
+        // 2. Intercept Chrome's beforeinstallprompt event
+        //    This fires when Chrome detects a valid manifest with proper icons
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            console.log('PWA install prompt available');
+            if (installBtn) installBtn.style.display = 'inline-block';
+            if (installedBtn) installedBtn.style.display = 'none';
+        });
 
-        // 4. Button click handler (only matters if button is visible)
+        // 3. Button click handler: use native prompt if available, else show instructions
         if (installBtn) {
             installBtn.addEventListener('click', async () => {
                 if (deferredPrompt) {
@@ -144,31 +109,24 @@ class App {
                     console.log('User response to PWA install: ' + outcome);
                     deferredPrompt = null;
                     if (outcome === 'accepted') {
-                        localStorage.setItem('pwa-installed', 'true');
                         installBtn.style.display = 'none';
                         if (installedBtn) installedBtn.style.display = 'inline-block';
                     }
                 } else {
-                    alert('To install this app:\n\n1. Click the browser menu (\u22ee) in the top right\n2. Select "Install OpenFOAM Wind Tunnel"\n   (or "Add to Home screen" on mobile)\n\nIf that option is not available, make sure you are using Chrome or Edge.');
+                    alert(
+                        'To install as a desktop app:\n\n' +
+                        '\u2022 Chrome/Edge: Click the \u22ee menu \u2192 "Install OpenFOAM Wind Tunnel"\n' +
+                        '  (or look for the install icon \u2295 in the address bar)\n\n' +
+                        '\u2022 Safari (iOS): Tap Share \u2192 "Add to Home Screen"\n\n' +
+                        '\u2022 Firefox: Not supported for PWA install'
+                    );
                 }
             });
         }
 
-        // 5. Intercept Chrome's beforeinstallprompt event
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            // App is installable — clear the installed flag (user may have uninstalled)
-            // and show the install button
-            localStorage.removeItem('pwa-installed');
-            if (installBtn) installBtn.style.display = 'inline-block';
-            if (installedBtn) installedBtn.style.display = 'none';
-        });
-
-        // 6. Handle successful installation
+        // 4. Handle successful installation
         window.addEventListener('appinstalled', () => {
             console.log('PWA installation successful');
-            localStorage.setItem('pwa-installed', 'true');
             if (installBtn) installBtn.style.display = 'none';
             if (installedBtn) installedBtn.style.display = 'inline-block';
             deferredPrompt = null;

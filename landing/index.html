@@ -7,6 +7,8 @@
     <title>OpenFOAM GUI</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/landing/css/styles.css">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#1a1a2e">
 </head>
 
 <body>
@@ -344,39 +346,65 @@
     <script src="/static/landing/js/status.js"></script>
     <script src="/static/landing/js/cases.js"></script>
     <script>
-        // ===== Install Button Persistence =====
+        // Register Service Worker (required by Chrome for PWA install prompt)
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                .then(reg => console.log('SW registered:', reg.scope))
+                .catch(err => console.warn('SW registration failed:', err));
+        }
+    </script>
+    <script>
+        // ===== Install Button =====
         (function () {
             const installBtn = document.getElementById('pwa-install-btn');
             const installedBtn = document.getElementById('pwa-installed-btn');
+            let deferredPrompt = null;
 
-            // Check if already installed
-            if (localStorage.getItem('pwa-installed') === 'true') {
+            // If running as standalone app, show "Installed" badge instead
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+            if (isStandalone) {
                 if (installBtn) installBtn.style.display = 'none';
                 if (installedBtn) installedBtn.style.display = 'inline-block';
+                return; // No need for install logic
             }
 
-            // Listen for beforeinstallprompt (means NOT installed yet)
+            // Always show the install button
+            if (installBtn) installBtn.style.display = 'inline-block';
+
+            // If the browser supports PWA install, capture the prompt
             window.addEventListener('beforeinstallprompt', (e) => {
                 e.preventDefault();
-                localStorage.removeItem('pwa-installed');
-                if (installBtn) installBtn.style.display = 'inline-block';
-                if (installedBtn) installedBtn.style.display = 'none';
-
-                installBtn.onclick = async () => {
-                    e.prompt();
-                    const { outcome } = await e.userChoice;
-                    if (outcome === 'accepted') {
-                        localStorage.setItem('pwa-installed', 'true');
-                        installBtn.style.display = 'none';
-                        if (installedBtn) installedBtn.style.display = 'inline-block';
-                    }
-                };
+                deferredPrompt = e;
             });
 
+            // Button click: use native prompt if available, otherwise show instructions
+            if (installBtn) {
+                installBtn.addEventListener('click', async () => {
+                    if (deferredPrompt) {
+                        deferredPrompt.prompt();
+                        const { outcome } = await deferredPrompt.userChoice;
+                        if (outcome === 'accepted') {
+                            installBtn.style.display = 'none';
+                            if (installedBtn) installedBtn.style.display = 'inline-block';
+                        }
+                        deferredPrompt = null;
+                    } else {
+                        alert(
+                            'To install as a desktop app:\n\n' +
+                            '• Chrome/Edge: Click the ⋮ menu → "Install OpenFOAM GUI"\n' +
+                            '  (or look for the install icon ⊕ in the address bar)\n\n' +
+                            '• Safari (iOS): Tap Share → "Add to Home Screen"\n\n' +
+                            '• Firefox: Not supported for PWA install'
+                        );
+                    }
+                });
+            }
+
+            // Handle successful installation
             window.addEventListener('appinstalled', () => {
-                localStorage.setItem('pwa-installed', 'true');
                 if (installBtn) installBtn.style.display = 'none';
                 if (installedBtn) installedBtn.style.display = 'inline-block';
+                deferredPrompt = null;
             });
         })();
 
@@ -444,31 +472,45 @@
             // Safari iOS requires requestPermission to be called synchronously in the gesture handler
             toggle.addEventListener('click', (e) => {
                 if (toggle.checked) {
-                    if ('Notification' in window) {
-                        Notification.requestPermission().then((perm) => {
-                            if (perm === 'granted') {
-                                localStorage.setItem('notif-enabled', 'true');
-                                // Use SW if possible for iOS
-                                if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                                    navigator.serviceWorker.controller.postMessage({
-                                        type: 'SHOW_NOTIFICATION',
-                                        title: '🔔 Notifications enabled',
-                                        body: 'You will be notified when simulations finish or crash.'
-                                    });
-                                } else {
-                                    new Notification('🔔 Notifications enabled', { body: 'You will be notified when simulations finish or crash.' });
-                                }
-                            } else {
-                                toggle.checked = false;
-                                alert('Notification permission denied.\n\nOn iOS, you MUST add this to your Home Screen. Note: Apple also silently blocks notification prompts on LAN IPs (like 10.0.0.x) because they are not HTTPS.');
-                            }
-                        }).catch(() => {
-                            toggle.checked = false;
-                        });
-                    } else {
+                    if (!('Notification' in window)) {
                         toggle.checked = false;
                         alert('Notifications are not supported by this browser.');
+                        return;
                     }
+
+                    // If previously denied, Chrome won't show the prompt again
+                    if (Notification.permission === 'denied') {
+                        toggle.checked = false;
+                        alert(
+                            'Notification permission was previously denied.\n\n' +
+                            'To reset it:\n' +
+                            '1. Click the 🔒 lock icon in the address bar\n' +
+                            '2. Click "Site settings"\n' +
+                            '3. Find "Notifications" and set it to "Ask" or "Allow"\n' +
+                            '4. Refresh this page and try again'
+                        );
+                        return;
+                    }
+
+                    Notification.requestPermission().then((perm) => {
+                        if (perm === 'granted') {
+                            localStorage.setItem('notif-enabled', 'true');
+                            // Use SW if possible for iOS
+                            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                                navigator.serviceWorker.controller.postMessage({
+                                    type: 'SHOW_NOTIFICATION',
+                                    title: '🔔 Notifications enabled',
+                                    body: 'You will be notified when simulations finish or crash.'
+                                });
+                            } else {
+                                new Notification('🔔 Notifications enabled', { body: 'You will be notified when simulations finish or crash.' });
+                            }
+                        } else {
+                            toggle.checked = false;
+                        }
+                    }).catch(() => {
+                        toggle.checked = false;
+                    });
                 } else {
                     localStorage.setItem('notif-enabled', 'false');
                 }

@@ -73,6 +73,25 @@ async def favicon():
     """Return empty favicon to prevent 404 errors."""
     return Response(content=b"", media_type="image/x-icon")
 
+@app.get("/manifest.json")
+async def serve_manifest():
+    """Serve the PWA Web App Manifest at root scope."""
+    wt_frontend = Path(__file__).parent / "modules" / "wind_tunnel" / "frontend"
+    return FileResponse(wt_frontend / "manifest.json", media_type="application/manifest+json")
+
+@app.get("/sw.js")
+async def serve_root_sw():
+    """Serve the Service Worker at root scope for PWA install support."""
+    wt_frontend = Path(__file__).parent / "modules" / "wind_tunnel" / "frontend"
+    return FileResponse(
+        wt_frontend / "sw.js",
+        media_type="application/javascript",
+        headers={
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": "/"
+        }
+    )
+
 @app.get("/home", response_class=HTMLResponse)
 async def home_redirect():
     """Redirect /home to landing page."""
