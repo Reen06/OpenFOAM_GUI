@@ -30,11 +30,11 @@
                 <!-- Install App Button -->
                 <button id="pwa-install-btn" class="view-toggle-btn"
                     style="padding: 6px 14px; font-weight: 600; background: linear-gradient(135deg, #4ade80, #22d3ee); color: #000; border: none; border-radius: 6px; cursor: pointer; font-size: 12px;">
-                    ⬇️ Install App
+                    ⬇️ <span class="btn-label">Install App</span>
                 </button>
                 <button id="pwa-installed-btn" class="view-toggle-btn"
                     style="display: none; padding: 6px 14px; pointer-events: none; opacity: 0.7; font-size: 12px; border-radius: 6px;">
-                    ✅ Installed
+                    ✅ <span class="btn-label">Installed</span>
                 </button>
                 <!-- LAN Toggle -->
                 <style>
@@ -162,7 +162,6 @@
                 </div>
                 <button id="view-toggle-btn" class="view-toggle-btn" onclick="toggleViewMode()"
                     title="Switch to list view">☰</button>
-                <span class="version">ESI OpenFOAM v2506</span>
             </div>
         </header>
 
@@ -173,6 +172,7 @@
 
         <footer class="footer">
             <p>OpenFOAM is a registered trademark of OpenCFD Ltd.</p>
+            <p style="font-size: 0.85em; opacity: 0.6; margin-top: 4px;">ESI OpenFOAM v2506</p>
         </footer>
     </div>
 

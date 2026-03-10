@@ -702,6 +702,15 @@ textarea.form-input {
 }
 
 
+/* Install button – prevent squishing at all sizes */
+#pwa-install-btn,
+#pwa-installed-btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+    width: auto;
+    height: auto;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .logo h1 {
@@ -714,6 +723,31 @@ textarea.form-input {
 
     .tools-grid {
         grid-template-columns: 1fr;
+    }
+
+    .tools-grid.list-view .case-actions {
+        display: none;
+    }
+
+    /* Give install button breathing room */
+    #pwa-install-btn,
+    #pwa-installed-btn {
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+}
+
+/* Very small screens: collapse install button to icon only */
+@media (max-width: 480px) {
+    #pwa-install-btn .btn-label,
+    #pwa-installed-btn .btn-label {
+        display: none;
+    }
+    #pwa-install-btn,
+    #pwa-installed-btn {
+        padding: 6px 10px !important;
+        font-size: 16px !important;
+        min-width: 36px;
     }
 }
 
@@ -731,6 +765,7 @@ textarea.form-input {
     flex-direction: column;
     max-height: 60vh;
     overflow-y: auto;
+    background: var(--bg-primary);
 }
 
 .simulations-container:empty {
